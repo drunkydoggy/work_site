@@ -517,9 +517,13 @@ function seedMeetings(s) {
   if (!s.meetings.some(m => m.id === s.current)) s.current = s.meetings[0].id;
 }
 
-const DEFAULT_MEMBERS = ['A. Scott', 'C. Anderson', 'B. Abramson', 'E. Desmond', 'J. Levy', 'N. Naidoo', 'S. Paquette', 'N. Théberge'];
+const DEFAULT_MEMBERS = ['A. Scott', 'C. Anderson', 'B. Abramson', 'E. Desmond', 'J. Levy', 'N. Naidoo', 'S. Paquette', 'N. Théberge', 'V. Eatrides'];
 function upgradeEM(s) {
   if (!s.members) s.members = DEFAULT_MEMBERS.map(name => ({ id:uid(), name, f:false }));
+  if (!s.eatrides) {
+    s.eatrides = true;
+    if (!s.members.some(x => x.name === 'V. Eatrides')) s.members.push({ id:uid(), name:'V. Eatrides', f:false });
+  }
   if (!s.emV2) {
     s.emV2 = true;
     const fresh = bbfrTemplates();
