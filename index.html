@@ -119,7 +119,7 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .other{margin-top:8px;max-width:240px}
 .pv-row{display:grid;grid-template-columns:64px 1fr;gap:8px;align-items:center;margin-bottom:8px}
 .pv-row label{margin:0}
-.pv-body{min-height:260px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.5}
+.pv-body{min-height:260px;font-family:Arial,Helvetica,sans-serif;font-size:12pt;line-height:1.5}
 .dlg-actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0 2px;margin-top:8px;border-top:1px solid var(--line)}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:#222;color:#fff;padding:10px 18px;border-radius:3px;transition:.25s;z-index:99;opacity:0;pointer-events:none}
 .toast.show{transform:translateX(-50%);opacity:1}
@@ -276,7 +276,11 @@ const KEY = 'meetingMailer.v2';
 const uid = () => Math.random().toString(36).slice(2, 10);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clock = d => d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
-const humanize = k => { const s = k.replace(/_/g, ' '); return s.charAt(0).toUpperCase() + s.slice(1); };
+const humanize = k => {
+  const L = { description_fr_points:'Description of item (French)', description_en_points:'Description of item (English)' };
+  if (L[k]) return L[k];
+  const s = k.replace(/_/g, ' '); return s.charAt(0).toUpperCase() + s.slice(1);
+};
 
 /* ---------- Default email wording ---------- */
 const SIG = '\nBest regards,\n{chair}';
@@ -544,7 +548,7 @@ const snapshot = () => { state.undo = { meeting:M().id, snap:M().agenda.map(i =>
 
 /* ---------- Template engine ---------- */
 const PH = /\{(\w+)(\?)?(?::([^}]*))?\}/g;
-const AUTO = new Set(['meeting','chair','now','today','item','item_speaker','item_duration','item_notes','prev_item','next_item','remaining','return_time']);
+const AUTO = new Set(['reply_date','reply_time','meeting','chair','now','today','item','item_speaker','item_duration','item_notes','prev_item','next_item','remaining','return_time']);
 const TEXTAREA = /(steps|deferred|points|actions|details|notes|overview)$/;
 const BULLET = /(steps|deferred|points|actions|overview)$/;
 
@@ -601,7 +605,12 @@ function renderText(text, vals, ctx) {
   const auto = autoVars(ctx, vals);
   const val = key => {
     const fr = /(?:date|time)_fr$/.test(key); if (fr) key = key.slice(0, -3);
-    const v = key in auto ? auto[key] : (vals[key] ?? '');
+    let v;
+    if (key === 'reply_date' || key === 'reply_time') {
+      const h = parseFloat(vals.response_hours), st = new Date(`${vals.meeting_date}T${vals.meeting_time || '00:00'}`);
+      if (!(h > 0) || isNaN(st)) v = '';
+      else { const e = new Date(st.getTime() + h * 3600000), p = n => String(n).padStart(2, '0'); v = key === 'reply_date' ? `${e.getFullYear()}-${p(e.getMonth() + 1)}-${p(e.getDate())}` : `${p(e.getHours())}:${p(e.getMinutes())}`; }
+    } else v = key in auto ? auto[key] : (vals[key] ?? '');
     if (!v || key in auto) return v;
     if (fr) return /date$/.test(key) ? dLongFr(v) : t24fr(v);
     return /deadline$/.test(key) ? dtl(v) : /date$/.test(key) ? dLong(v) : /time$/.test(key) ? t12(v) : v;
@@ -702,14 +711,28 @@ const mailto = () => {
 };
 const updateWarn = () => { $('e-warn').textContent = mailto().length > 1900 ? '⚠ Long email: some mail clients cut off mailto links. Use Copy Body instead.' : ''; };
 ['e-to','e-cc','e-subj','e-body'].forEach(id => $(id).addEventListener('input', updateWarn));
-async function copy(text, label) {
-  try { await navigator.clipboard.writeText(text); }
+const bodyHtml = text => {
+  const out = []; let list = false;
+  for (const line of text.split('\n')) {
+    const b = line.match(/^\s*[•*-]\s+(.*)$/);
+    if (b) { if (!list) { out.push('<ul>'); list = true; } out.push(`<li>${esc(b[1])}</li>`); continue; }
+    if (list) { out.push('</ul>'); list = false; }
+    out.push(/^_{8,}$/.test(line.trim()) ? '<hr>' : line.trim() ? `<p style="margin:0 0 12pt">${esc(line)}</p>` : '');
+  }
+  if (list) out.push('</ul>');
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:12pt">${out.join('')}</div>`;
+};
+async function copy(text, label, html) {
+  try {
+    if (html && window.ClipboardItem) await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type:'text/html' }), 'text/plain': new Blob([text], { type:'text/plain' }) })]);
+    else await navigator.clipboard.writeText(text);
+  }
   catch { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
   toast(label + ' copied');
 }
 $('e-subjcopy').onclick = () => copy($('e-subj').value, 'Subject');
-$('e-bodycopy').onclick = () => copy($('e-body').value, 'Body');
-$('e-all').onclick = () => copy(`To: ${$('e-to').value}\nCC: ${$('e-cc').value}\nSubject: ${$('e-subj').value}\n\n${$('e-body').value}`, 'Email');
+$('e-bodycopy').onclick = () => copy($('e-body').value, 'Body', bodyHtml($('e-body').value));
+$('e-all').onclick = () => copy(`To: ${$('e-to').value}\nCC: ${$('e-cc').value}\nSubject: ${$('e-subj').value}\n\n${$('e-body').value}`, 'Email', `<p style="font-family:Arial;font-size:12pt;margin:0">To: ${esc($('e-to').value)}<br>CC: ${esc($('e-cc').value)}<br>Subject: ${esc($('e-subj').value)}</p><br>${bodyHtml($('e-body').value)}`);
 $('e-mail').onclick = () => { window.location.href = mailto(); };
 $('e-close').onclick = () => $('dlg').close();
 $('dlg').addEventListener('click', e => { if (e.target === $('dlg')) $('dlg').close(); });
