@@ -107,7 +107,7 @@ th.id,td.id{width:56px}
 .tpl h3{display:flex;gap:8px;align-items:center}
 
 /* Dialog */
-dialog{width:min(780px,96vw);max-height:94vh;border:none;border-radius:4px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.35);color:var(--ink)}
+dialog{width:min(1100px,96vw);max-height:96vh;border:none;border-radius:4px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.35);color:var(--ink)}
 dialog::backdrop{background:rgba(10,15,30,.55)}
 .dlg-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px}
 .dlg-head h3{margin:0;font-size:19px}
@@ -131,7 +131,9 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .vitem{border:1px solid var(--line);background:#fff;padding:10px 12px;margin:6px 0 10px}
 .vhead{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:8px}
 .vhead input{width:110px}
-.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 12px}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px 10px}
+.vgrid select{padding:5px 6px}
+.mem-t td{padding:3px 6px}
 .vgrid label{font-size:13px}
 .tpick{display:flex;align-items:center;gap:6px}
 .tpick select{width:auto;min-width:78px}
@@ -297,6 +299,7 @@ code{background:#eef1f8;padding:1px 5px;border-radius:5px;font-size:13px}
     📎 <b>Drag and drop documents here</b> or click to browse
     <input type="file" id="e-file" multiple hidden>
     <ul id="e-files" class="files"></ul>
+    <p class="hint" id="e-items"></p>
   </div>
   <div class="dlg-actions row">
     <button class="btn" id="e-mail">Open in Mail Client</button>
@@ -811,7 +814,7 @@ function openEmail(tpl, opts = {}) {
 const idb = () => new Promise((res, rej) => { const r = indexedDB.open('meetingMailer.files', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 const idbDo = async (mode, fn) => { const db = await idb(); return new Promise((res, rej) => { const q = fn(db.transaction('f', mode).objectStore('f')); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); };
 const openList = () => state.open || (state.open = []);
-const itemNumFromName = name => { const m = name.match(/^\s*(?:item|article|point)?[\s._-]*(\d+(?:\.\d+)*)/i); return m ? m[1] : ''; };
+const itemNumFromName = name => { const m = name.match(/^[\s\W_]*(?:[A-Za-zÀ-ÿ]{1,12}\.?)?[\s._#-]*(\d{1,3}(?:\.\d{1,3})*)(?!\d)/); return m ? m[1] : ''; };
 function parseItems(text) {
   return text.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const m = l.match(/^(\S+)\s*[-–:]?\s*(.*)$/); return { num:m[1], title:m[2] }; });
 }
@@ -1001,6 +1004,8 @@ const fmtSize = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1
 function renderFiles() {
   $('e-files').innerHTML = files.map((f, i) => `<li><span>📄 ${esc(f.name)} (${fmtSize(f.size)})</span><button class="btn sec sm" data-rm="${i}" aria-label="Remove ${esc(f.name)}">✕</button></li>`).join('');
   $('e-eml').classList.toggle('hidden', !files.length);
+  const nums = [...new Set(files.map(f => itemNumFromName(f.name)).filter(Boolean))].sort((x, y) => x.localeCompare(y, undefined, { numeric:true }));
+  $('e-items').textContent = dlg && dlg.track && nums.length ? `Items found in file names: ${nums.join(', ')} (${nums.length}) – these will fill the Approval form.` : '';
 }
 function addFiles(list) {
   [...list].forEach(f => { if (!files.some(x => x.name === f.name && x.size === f.size)) files.push(f); });
@@ -1043,6 +1048,7 @@ $('e-eml').onclick = async () => {
   toast('Draft downloaded — open it to send with attachments');
 };
 $('e-close').onclick = () => $('dlg').close();
+$('dlg').addEventListener('close', () => { if (dlg && dlg.track && files.length) trackSave(); });
 $('dlg').addEventListener('click', e => { if (e.target === $('dlg')) $('dlg').close(); });
 $('e-edit').addEventListener('click', () => {
   const id = dlg && dlg.tpl.id; $('dlg').close();
