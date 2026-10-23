@@ -120,6 +120,11 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .pv-row{display:grid;grid-template-columns:64px 1fr;gap:8px;align-items:center;margin-bottom:8px}
 .pv-row label{margin:0}
 .pv-body{min-height:260px;font-family:Arial,Helvetica,sans-serif;font-size:12pt;line-height:1.5}
+#mem-box{margin-bottom:14px}
+.mem-t td,.mem-t th{padding:6px 6px;font-size:13px}
+.mem-t input[type=radio],.mem-t input[type=checkbox]{width:18px;height:18px;margin:0}
+.mem-row{display:grid;grid-template-columns:1fr 240px auto;gap:8px;margin-bottom:6px}
+@media(max-width:700px){.mem-row{grid-template-columns:1fr}}
 .dlg-actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0 2px;margin-top:8px;border-top:1px solid var(--line)}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:#222;color:#fff;padding:10px 18px;border-radius:3px;transition:.25s;z-index:99;opacity:0;pointer-events:none}
 .toast.show{transform:translateX(-50%);opacity:1}
@@ -183,9 +188,19 @@ code{background:#eef1f8;padding:1px 5px;border-radius:5px;font-size:13px}
           <div><label for="m-chair">Chairperson</label><input id="m-chair" data-m="chair"></div>
           <div><label for="m-to">To (default recipients)</label><input id="m-to" data-m="to" placeholder="a@x.com, b@x.com"></div>
           <div><label for="m-cc">CC</label><input id="m-cc" data-m="cc"></div>
+          <div><label for="m-fr">French code for e-M subject lines</label><input id="m-fr" data-m="fr" placeholder="e.g. RCT, EFLB (e-M meetings only)"></div>
           <div class="full"><label><input type="checkbox" id="m-live"> Send live status emails for this meeting (next item starting, break, technical issues)</label></div>
         </div>
         <div class="row" style="margin-top:12px"><button class="btn sec sm" data-act="m-new">＋ New meeting</button><button class="btn sec sm" data-act="m-dup">Duplicate</button><button class="btn sec sm" data-act="m-del">Delete meeting</button></div>
+      </div>
+    </details>
+
+    <details class="panel">
+      <summary>Members (shared by all e-M meetings)</summary>
+      <div class="body">
+        <p class="note">One list for every e-M meeting. In the Approval email you tick who took part, who chairs and how each voted. Choose Conseillère for women so the French wording agrees.</p>
+        <div id="mem-list"></div>
+        <div class="row" style="margin-top:10px"><button class="btn sec sm" data-act="mem-add">＋ Add member</button></div>
       </div>
     </details>
 
@@ -285,12 +300,10 @@ const humanize = k => {
 /* ---------- Default email wording ---------- */
 const SIG = '\nBest regards,\n{chair}';
 /* Meeting-specific emails (cat 'own'): shown only for the meeting named in `only`. French first, then English. */
-const BBFR_TAIL = 'EFLB Réunion-é / BBFR e-Meeting {meeting_date}';
+const BBFR_TAIL = '{em_title} {meeting_date}';
 const bbfrTemplates = () => {
-  const mk = (id, icon, name, subj, fr, en) => ({ id:'bbfr-' + id, only:'BBFR e-M', cat:'own', icon, name, urgent:false,
+  const mk = (id, icon, name, subj, fr, en) => ({ id:'bbfr-' + id, only:'*e-M', cat:'own', icon, name, urgent:false,
     subject:`${subj}: ${BBFR_TAIL}`, body:`${fr}\n\n________________________________\n\n${en}` });
-  const votes = { fr:'L\'article {item_number} a été {decision_fr:approuvé|rejeté|approuvé tel que modifié} par {for_members}, et {decision2_fr:approuvé|rejeté|approuvé tel que modifié} par {other_members}.\n\nAbstentions : {abstained_members?}',
-    en:'Item {item_number} has been {decision_en:approved|rejected|approved as amended} by {for_members}, and {decision2_en:approved|rejected|approved as amended} by {other_members}.\n\nAbstained: {abstained_members?}' };
   return [
     mk('announce', '📣', 'Announce', 'Announce: NOUVEAU/NEW',
       'Veuillez noter qu\'il y aura une réunion du Comité d\'examen des fonds pour la large bande électronique (R-é), le {meeting_date_fr} à {meeting_time_fr} avec un délai de réponse de {response_hours:24|48|72} heures – {reply_date_fr} à {reply_time_fr}.\n\n{description_fr_points}',
@@ -325,9 +338,10 @@ const bbfrTemplates = () => {
     mk('signature', '✍️', 'For signature', 'For Signature: FOR SIGNATURE',
       'Veuillez consulter la chaîne de courriels ci-dessous concernant la réunion susmentionnée et bien vouloir confirmer votre {signature_rest_fr}',
       'Please review the email chain below regarding the above-mentioned meeting and kindly confirm your {signature_rest_en}'),
-    mk('approval', '✅', 'Approval', 'Approval: APPROBATION/APPROVAL',
-      'Veuillez trouver ci-dessous la liste des Conseillers qui ont participé à cette réunion-é, ainsi que leurs votes :\n\n{members_details}\n\n' + votes.fr,
-      'Please find below the list of Members who participated in this e-Meeting, as well as their votes:\n\n{members_details}\n\n' + votes.en),
+    { ...mk('approval', '✅', 'Approval', 'Approval: APPROBATION/APPROVAL',
+      'Veuillez trouver ci-dessous la liste des Conseillers qui ont participé à cette réunion-é, ainsi que leurs votes :\n\n{members_fr}\n\nL\'article {item_number} a été présenté aux Conseillers.\n\nL\'article {item_number} a été {vote_fr}',
+      'Please find below the list of Members who participated in this e-Meeting, as well as their votes:\n\n{members_en}\n\nItem {item_number} was presented to the Commissioners.\n\nItem {item_number} has been {vote_en}'),
+      subject:'Approval: APPROBATION/APPROVAL : {em_title} {meeting_date}' },
     mk('cancel', '🚫', 'Cancelled', 'Cancelled: ANNULÉE/CANCELLED',
       'Veuillez noter que la réunion susmentionnée a été annulée et sera reporté à une date ultérieure.',
       'Please note that the above-mentioned meeting has been cancelled and will be rescheduled to a later date.')
@@ -485,6 +499,20 @@ function seedMeetings(s) {
   if (!s.meetings.some(m => m.id === s.current)) s.current = s.meetings[0].id;
 }
 
+const DEFAULT_MEMBERS = ['A. Scott', 'C. Anderson', 'B. Abramson', 'E. Desmond', 'J. Levy', 'N. Naidoo', 'S. Paquette', 'N. Théberge'];
+function upgradeEM(s) {
+  if (!s.members) s.members = DEFAULT_MEMBERS.map(name => ({ id:uid(), name, f:false }));
+  if (s.emShared) return;
+  s.emShared = true;
+  s.templates.forEach(t => {
+    if (!t.id.startsWith('bbfr-')) return;
+    t.only = '*e-M';
+    t.subject = t.subject.replace('EFLB Réunion-é / BBFR e-Meeting {meeting_date}', BBFR_TAIL);
+  });
+  const i = s.templates.findIndex(t => t.id === 'bbfr-approval');
+  if (i >= 0) s.templates[i] = bbfrTemplates().find(t => t.id === 'bbfr-approval');
+  if (!s.meetings.some(m => m.name.trim().toLowerCase() === 'tcm e-m')) s.meetings.push(newMeeting('TCM e-M'));
+}
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
@@ -500,6 +528,7 @@ function load() {
       if (!s.announceV2) { s.announceV2 = true; const i = s.templates.findIndex(x => x.id === 'bbfr-announce'); if (i >= 0) s.templates[i] = bbfrTemplates()[0]; }
       s.meetings.forEach(m => { m.agenda = (m.agenda || []).map(i => blankItem(i)); if (m.live === undefined) m.live = true; });
       seedMeetings(s);
+      upgradeEM(s);
       return s;
     }
   } catch {}
@@ -513,13 +542,18 @@ function load() {
     }
   } catch {}
   const fresh = { meetings:[m], current:m.id, templates:defaultTemplates(), undo:null };
-  m.live = true; seedMeetings(fresh);
+  m.live = true; seedMeetings(fresh); upgradeEM(fresh);
   return fresh;
 }
 let state = load();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
 const M = () => state.meetings.find(m => m.id === state.current) || state.meetings[0];
-const forMeeting = (t, m) => !t.only || t.only.split(',').some(n => n.trim().toLowerCase() === (m.name || '').trim().toLowerCase());
+const forMeeting = (t, m) => {
+  if (!t.only || !t.only.trim()) return true;
+  const name = (m.name || '').trim().toLowerCase();
+  return t.only.split(',').some(n => { n = n.trim().toLowerCase(); return n.startsWith('*') ? name.includes(n.slice(1)) : n === name; });
+};
+const isEM = m => /e-m/i.test(m.name || '');
 const toast = msg => { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 1800); };
 
 /* ---------- Agenda helpers ---------- */
@@ -535,7 +569,7 @@ const snapshot = () => { state.undo = { meeting:M().id, snap:M().agenda.map(i =>
 
 /* ---------- Template engine ---------- */
 const PH = /\{(\w+)(\?)?(?::([^}]*))?\}/g;
-const AUTO = new Set(['reply_date','reply_time','meeting','meeting_code','chair','now','today','item','item_speaker','item_duration','item_notes','prev_item','next_item','remaining','return_time']);
+const AUTO = new Set(['reply_date','reply_time','meeting','meeting_code','chair','now','today','item','item_speaker','item_duration','item_notes','prev_item','next_item','remaining','return_time','em_title','members_fr','members_en','vote_fr','vote_en']);
 const TEXTAREA = /(steps|deferred|points|actions|details|notes|overview)$/;
 const BULLET = /(steps|deferred|points|actions|overview)$/;
 
@@ -576,6 +610,66 @@ const dLongFr = s => { const [y,m,d] = s.split('-').map(Number); const dt = new 
 const t24fr = s => { const [h,mi] = s.split(':').map(Number); return isNaN(h) ? s : `${h} h${mi ? ' ' + String(mi).padStart(2, '0') : ''}`; };
 const dtl = s => { const dt = new Date(s); return isNaN(dt) ? s : dt.toLocaleString([], {dateStyle:'full', timeStyle:'short'}); };
 
+/* ---------- e-M approval: members, votes, wording ---------- */
+const FR_CODES = { BBFR:'EFLB', TCM:'RCT', FCM:'RPC', BCM:'RCR' };
+function emTitle(m) {
+  const base = (m.name || '').replace(/\s*e-M/i, '').trim();
+  return `${m.fr || FR_CODES[base.toUpperCase()] || base} Réunion-é / ${base} e-Meeting`;
+}
+const VOTES = [['absent', 'Absent'], ['with', 'Agrees'], ['against', 'Against'], ['minority', 'Against + minority opinion'], ['abstain', 'Abstains']];
+const OUTCOMES = [['approved', 'Approved'], ['approved_mod', 'Approved with modifications'], ['refused', 'Refused']];
+const WORDS = {
+  fr: {
+    all: { approved:'approuvé par tous.', approved_mod:'approuvé, avec modifications, par tous.', refused:'refusé par tous.' },
+    maj: { approved:'approuvé, par majorité, à l\'exception', approved_mod:'approuvé, avec modifications, par majorité, à l\'exception', refused:'refusé, par majorité, à l\'exception' },
+    and: ', et ', pp: { approved:'refusé', approved_mod:'refusé', refused:'approuvé' },
+    chair: f => f ? 'Présidente' : 'Président', alt: 'Alternate'
+  },
+  en: {
+    all: { approved:'approved by all.', approved_mod:'approved, with modifications, by all.', refused:'refused by all.' },
+    maj: { approved:'approved, by majority, with the exception of', approved_mod:'approved, with modifications, by majority, with the exception of', refused:'refused, by majority, with the exception of' },
+    and: ', and ', pp: { approved:'refused', approved_mod:'refused', refused:'approved' },
+    chair: () => 'Chairperson', alt: 'Alternate'
+  }
+};
+function newMem(m) {
+  const rows = state.members.map(x => ({ id:x.id, name:x.name, f:!!x.f, vote:'with', chair:false, alt:false }));
+  const want = (m.chair || '').trim().toLowerCase();
+  const c = rows.find(r => r.id === m.chairId) || rows.find(r => want && r.name.toLowerCase() === want) || rows[0];
+  if (c) c.chair = true;
+  return { rows, outcome:'approved' };
+}
+const joinNames = (list, lang) => list.length < 2 ? list.join('') : list.slice(0, -1).join(', ') + (lang === 'fr' ? ' et ' : ' and ') + list[list.length - 1];
+function membersText(lang, mem) {
+  const rows = mem.rows.filter(r => r.vote !== 'absent'), W = WORDS[lang];
+  return [...rows.filter(r => r.chair), ...rows.filter(r => !r.chair)]
+    .map(r => r.name + (r.chair ? ` (${W.chair(r.f)})` : '') + (r.alt ? ` (${W.alt})` : '')).join('\n');
+}
+function voteText(lang, mem) {
+  const W = WORDS[lang], fr = lang === 'fr', rows = mem.rows.filter(r => r.vote !== 'absent');
+  if (!rows.length) return '';
+  const groups = ['against', 'minority', 'abstain'].map(v => ({ v, list:rows.filter(r => r.vote === v) })).filter(g => g.list.length);
+  if (!groups.length) return W.all[mem.outcome];
+  const pp = W.pp[mem.outcome];
+  const clause = g => {
+    const pl = g.list.length > 1, fem = g.list.every(r => r.f), names = joinNames(g.list.map(r => r.name), lang);
+    let title, verb;
+    if (fr) {
+      title = pl ? (fem ? 'des Conseillères' : 'des Conseillers') : (fem ? 'de la Conseillère' : 'du Conseiller');
+      verb = g.v === 'against' ? `qui ${pl ? 'ont' : 'a'} ${pp}`
+        : g.v === 'minority' ? `qui ${pl ? 'ont' : 'a'} ${pp} et se réserve${pl ? 'nt' : ''} le droit d'écrire une opinion minoritaire`
+        : `qui ${pl ? 'se sont' : 's\'est'} abstenu${fem ? 'e' : ''}${pl ? 's' : ''}`;
+    } else {
+      title = pl ? 'Commissioners' : 'Commissioner';
+      verb = g.v === 'against' ? `who ${pp}`
+        : g.v === 'minority' ? `who ${pp} and reserve${pl ? '' : 's'} the right to write a minority opinion`
+        : 'who abstained';
+    }
+    return `${title} ${names}, ${verb}`;
+  };
+  return `${W.maj[mem.outcome]} ${groups.map(clause).join(W.and)}.`;
+}
+
 function autoVars(ctx, vals) {
   const m = M(), now = new Date(), mins = parseFloat(vals.minutes);
   const skip = (vals.skipped_item || '').trim();
@@ -587,7 +681,10 @@ function autoVars(ctx, vals) {
     prev_item: ctx.prev ? ctx.prev.title : '', next_item: ctx.next ? ctx.next.title : '',
     remaining: remainingItems().filter(i => !skip || i.title !== skip).map(itemLine).join('\n'),
     return_time: mins > 0 ? clock(new Date(now.getTime() + mins * 60000)) : '',
-    return_time_fr: mins > 0 ? t24fr(`${new Date(now.getTime() + mins * 60000).getHours()}:${new Date(now.getTime() + mins * 60000).getMinutes()}`) : ''
+    return_time_fr: mins > 0 ? t24fr(`${new Date(now.getTime() + mins * 60000).getHours()}:${new Date(now.getTime() + mins * 60000).getMinutes()}`) : '',
+    em_title: emTitle(m),
+    members_fr: ctx.mem ? membersText('fr', ctx.mem) : '', members_en: ctx.mem ? membersText('en', ctx.mem) : '',
+    vote_fr: ctx.mem ? voteText('fr', ctx.mem) : '', vote_en: ctx.mem ? voteText('en', ctx.mem) : ''
   };
 }
 function renderText(text, vals, ctx) {
@@ -639,6 +736,7 @@ function openEmail(tpl, opts = {}) {
   const subjText = custom && item.subject.trim() ? item.subject : tpl.subject;
   const bodyText = custom && item.body.trim() ? item.body : tpl.body;
   const fields = parseFields(subjText + '\n' + bodyText);
+  if (/\{(members_fr|members_en|vote_fr|vote_en)\}/.test(subjText + bodyText)) ctx.mem = newMem(m);
   const vals = {};
   fields.forEach(f => vals[f.key] = defaultFor(f, ctx));
   Object.assign(vals, opts.vals || {});
@@ -647,13 +745,40 @@ function openEmail(tpl, opts = {}) {
   $('e-to').value = (custom && item.to) ? item.to : m.to;
   $('e-cc').value = m.cc;
   const fe = $('e-fields');
-  fe.classList.toggle('hidden', !fields.length);
-  fe.innerHTML = fields.map(fieldHTML).join('');
+  fe.classList.toggle('hidden', !fields.length && !ctx.mem);
+  fe.innerHTML = (ctx.mem ? memHTML(ctx.mem) : '') + fields.map(fieldHTML).join('');
   regen();
   const d = $('dlg'); if (!d.open) d.showModal();
   const first = fe.querySelector('.chip[aria-pressed=true], input, select, textarea');
   if (first && !fields.length) $('e-mail').focus(); else if (first) first.focus();
 }
+function memHTML(mem) {
+  const head = VOTES.map(([, l]) => `<th>${l}</th>`).join('');
+  const rows = mem.rows.map(r => `<tr data-mid="${r.id}"><td class="l">${esc(r.name)}</td>
+    <td><input type="radio" name="mem-chair" data-mchair="${r.id}" aria-label="Chairperson: ${esc(r.name)}"${r.chair ? ' checked' : ''}></td>
+    ${VOTES.map(([v, l]) => `<td><input type="radio" name="mem-vote-${r.id}" data-mvote="${v}" aria-label="${esc(r.name)}: ${l}"${r.vote === v ? ' checked' : ''}></td>`).join('')}
+    <td><input type="checkbox" data-malt aria-label="Alternate: ${esc(r.name)}"${r.alt ? ' checked' : ''}></td></tr>`).join('');
+  return `<div id="mem-box"><label>Decision</label>
+    <div class="chips" style="margin-bottom:12px">${OUTCOMES.map(([v, l]) => `<label class="chip" style="text-transform:none"><input type="radio" name="mem-out" data-mout="${v}"${mem.outcome === v ? ' checked' : ''}> ${l}</label>`).join('')}</div>
+    <label>Who took part, who is Chairperson, and how each voted</label>
+    ${mem.rows.length ? `<div class="tw"><table class="dt mem-t"><thead><tr><th class="l">Member</th><th>Chair</th>${head}<th>Alternate</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="empty">No members yet. Add them under Setup → Members.</p>'}</div>`;
+}
+$('e-fields').addEventListener('change', e => {
+  const t = e.target, mem = dlg && dlg.ctx.mem; if (!mem) return;
+  const row = t.closest('tr[data-mid]'), r = row && mem.rows.find(x => x.id === row.dataset.mid);
+  if (t.dataset.mout) mem.outcome = t.dataset.mout;
+  else if (t.dataset.mvote && r) {
+    r.vote = t.dataset.mvote;
+    if (r.vote === 'absent' && r.chair) { r.chair = false; const c = mem.rows.find(x => x.vote !== 'absent'); if (c) c.chair = true; $('mem-box').outerHTML = memHTML(mem); }
+  } else if (t.dataset.mchair) {
+    mem.rows.forEach(x => x.chair = x.id === t.dataset.mchair);
+    const c = mem.rows.find(x => x.chair);
+    if (c && c.vote === 'absent') { c.vote = 'with'; $('mem-box').outerHTML = memHTML(mem); }
+    M().chairId = t.dataset.mchair; save();
+  } else if (t.hasAttribute('data-malt') && r) r.alt = t.checked;
+  else return;
+  regen();
+});
 function fieldHTML(f) {
   const k = f.key, cur = dlg.vals[k] ?? '', label = humanize(k) + (f.optional ? ' (optional)' : '');
   const urg = dlg.tpl.urgent ? ' urg' : '';
@@ -702,13 +827,17 @@ const mailto = () => {
 const updateWarn = () => { $('e-warn').textContent = mailto().length > 1900 ? '⚠ Long email: some mail clients cut off mailto links. Use Copy Body instead.' : ''; };
 ['e-to','e-cc','e-subj','e-body'].forEach(id => $(id).addEventListener('input', updateWarn));
 const bodyHtml = text => {
-  const out = []; let list = false;
+  const out = []; let list = false, para = [];
+  const flush = () => { if (para.length) out.push(`<p style="margin:0 0 12pt">${para.map(esc).join('<br>')}</p>`); para = []; };
   for (const line of text.split('\n')) {
     const b = line.match(/^\s*[•*-]\s+(.*)$/);
-    if (b) { if (!list) { out.push('<ul>'); list = true; } out.push(`<li>${esc(b[1])}</li>`); continue; }
+    if (b) { flush(); if (!list) { out.push('<ul>'); list = true; } out.push(`<li>${esc(b[1])}</li>`); continue; }
     if (list) { out.push('</ul>'); list = false; }
-    out.push(/^_{8,}$/.test(line.trim()) ? '<hr>' : line.trim() ? `<p style="margin:0 0 12pt">${esc(line)}</p>` : '');
+    if (/^_{8,}$/.test(line.trim())) { flush(); out.push('<hr>'); }
+    else if (line.trim()) para.push(line);
+    else flush();
   }
+  flush();
   if (list) out.push('</ul>');
   return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:12pt">${out.join('')}</div>`;
 };
@@ -826,9 +955,16 @@ $('page-run').addEventListener('click', e => {
 });
 
 /* ---------- Setup page ---------- */
+function renderMembers() {
+  $('mem-list').innerHTML = state.members.map(x => `<div class="mem-row" data-mid="${x.id}">
+    <input data-mname value="${esc(x.name)}" aria-label="Member name">
+    <select data-mf aria-label="Title"><option value=""${x.f ? '' : ' selected'}>Conseiller / Commissioner</option><option value="1"${x.f ? ' selected' : ''}>Conseillère / Commissioner (f)</option></select>
+    <button class="btn sec sm" data-act="mem-del" aria-label="Delete ${esc(x.name)}">🗑</button></div>`).join('') || '<p class="empty">No members yet.</p>';
+}
 function renderSetup() {
   const m = M();
-  ['name','chair','to','cc'].forEach(k => $('m-' + k).value = m[k] || '');
+  ['name','chair','to','cc','fr'].forEach(k => $('m-' + k).value = m[k] || '');
+  renderMembers();
   $('m-live').checked = !!m.live;
   document.querySelectorAll('#page-setup .live-only').forEach(e => e.classList.toggle('hidden', !m.live));
   renderAgendaEditor();
@@ -868,6 +1004,11 @@ function renderAgendaEditor() {
 $('page-setup').addEventListener('input', e => {
   const el = e.target;
   if (el.id === 'm-live') { M().live = el.checked; save(); renderHeader(); renderSetup(); return; }
+  if (el.closest('.mem-row')) {
+    const x = state.members.find(q => q.id === el.closest('.mem-row').dataset.mid); if (!x) return;
+    if ('mname' in el.dataset) x.name = el.value; else if ('mf' in el.dataset) x.f = el.value === '1';
+    save(); return;
+  }
   if (el.dataset.m) { M()[el.dataset.m] = el.value; save(); if (el.dataset.m === 'name') renderHeader(); return; }
   if (el.dataset.flt) { flt[el.dataset.flt] = el.value.trim(); renderAgendaEditor(); return; }
   const row = el.closest('.edit-row'); if (!row || !el.dataset.f) return;
@@ -881,6 +1022,8 @@ $('new-title').addEventListener('keydown', e => { if (e.key === 'Enter') { e.pre
 $('page-setup').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act, m = M(), row = b.closest('tr'), id = row && row.dataset.id, n = id ? m.agenda.findIndex(i => i.id === id) : -1;
+  if (act === 'mem-add') { state.members.push({ id:uid(), name:'', f:false }); save(); renderMembers(); const i = $('mem-list').querySelectorAll('[data-mname]'); i[i.length - 1].focus(); return; }
+  if (act === 'mem-del') { state.members = state.members.filter(q => q.id !== b.closest('.mem-row').dataset.mid); save(); renderMembers(); return; }
   if (act === 'toggle-add') { $('add-panel').classList.toggle('hidden'); if (!$('add-panel').classList.contains('hidden')) $('new-title').focus(); return; }
   if (act === 'toggle-paste') { $('paste-panel').classList.toggle('hidden'); return; }
   if (act === 'clear-flt') { Object.keys(flt).forEach(k => delete flt[k]); document.querySelectorAll('[data-flt]').forEach(i => i.value = ''); renderAgendaEditor(); return; }
