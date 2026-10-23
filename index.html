@@ -182,7 +182,7 @@ code{background:#eef1f8;padding:1px 5px;border-radius:5px;font-size:13px}
     <div class="live-only"><div class="card" id="run-status"></div>
     <div class="card urgent-wrap"><h3>⚡ Something just happened</h3><div class="qgrid" id="run-quick"></div></div></div>
     <div class="card hidden" id="run-own-card"><h3 id="run-own-title">✉️ Meeting emails</h3><div class="qgrid" id="run-own"></div></div>
-    <div class="card"><h3>📅 Scheduling &amp; logistics</h3><div class="qgrid" id="run-sched"></div></div>
+    <div class="card" id="run-sched-card"><h3>📅 Scheduling &amp; logistics</h3><div class="qgrid" id="run-sched"></div></div>
     <div class="live-only"><div class="toolbar"><div class="info">Agenda</div><div class="btns"><button class="btn sec sm" data-act="reset-all">Reset progress</button></div></div>
     <div class="tw"><table class="dt"><thead><tr><th class="id">ID</th><th>Title</th><th>Presenter</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead><tbody id="run-agenda"></tbody></table></div></div>
   </section>
@@ -1018,7 +1018,8 @@ function renderRun() {
   const m = M(), a = active(), n = nextAfter(a);
   $('run-title').textContent = m.name || 'Run meeting';
   document.querySelectorAll('#page-run .live-only').forEach(e => e.classList.toggle('hidden', !m.live));
-  $('run-note').classList.toggle('hidden', !!m.live);
+  $('run-note').classList.toggle('hidden', !!m.live || isEM(m));
+  $('run-sched-card').classList.toggle('hidden', isEM(m));
   const box = (it, extra) => it ? `<div class="t">${esc(it.title)}</div><div class="meta">${esc(it.speaker || '—')} · ${esc(it.duration || 0)} min</div>${extra || ''}` : '<span class="empty">None</span>';
   const undo = state.undo && state.undo.meeting === m.id;
   const label = !n ? 'No more items to start' : a ? `▶ Next item starting: ${esc(n.title)}` : `▶ Start first item: ${esc(n.title)}`;
