@@ -584,7 +584,14 @@ function load() {
   return fresh;
 }
 let state = load();
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
+let serverOK = false, serverRev = 0, pushTimer = null;
+const api = (path, opt = {}) => fetch(path, { cache:'no-store', ...opt }).then(r => { if (!r.ok) throw new Error(r.status); return r; });
+const pushState = () => api('/api/state', { method:'PUT', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ state }) })
+  .then(r => r.json()).then(j => { serverRev = j.rev; }).catch(() => {});
+const save = () => {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  if (serverOK) { clearTimeout(pushTimer); pushTimer = setTimeout(pushState, 300); }
+};
 const M = () => state.meetings.find(m => m.id === state.current) || state.meetings[0];
 const forMeeting = (t, m) => {
   if (!t.only || !t.only.trim()) return true;
@@ -816,9 +823,14 @@ function trackHTML() {
     <label class="chk"><input type="checkbox" data-trk-close checked> Remove from Open e-Ms after I copy or send this</label></div>`;
   return '';
 }
+const fileStore = {
+  async put(key, blob) { if (serverOK) await api('/api/files/' + key, { method:'PUT', body:blob }); else await idbDo('readwrite', st => st.put(blob, key)); },
+  async get(key) { if (serverOK) return (await api('/api/files/' + key)).blob(); return idbDo('readonly', st => st.get(key)); },
+  async del(key) { if (serverOK) await api('/api/files/' + key, { method:'DELETE' }); else await idbDo('readwrite', st => st.delete(key)); }
+};
 async function loadRecFiles(rec) {
   const got = [];
-  for (const f of rec.files) { try { const b = await idbDo('readonly', st => st.get(f.key)); if (b) got.push(new File([b], f.name, { type:f.type })); } catch {} }
+  for (const f of rec.files) { try { const b = await fileStore.get(f.key); if (b) got.push(new File([b], f.name, { type:f.type })); } catch {} }
   if (dlg && dlg.rec === rec) { got.forEach(f => { if (!files.some(x => x.name === f.name && x.size === f.size)) files.push(f); }); renderFiles(); }
 }
 async function trackSave() {
@@ -833,12 +845,12 @@ async function trackSave() {
   for (const f of files) {
     if (rec.files.some(x => x.name === f.name && x.size === f.size)) continue;
     const key = uid() + uid();
-    try { await idbDo('readwrite', st => st.put(f, key)); rec.files.push({ key, name:f.name, type:f.type, size:f.size }); } catch {}
+    try { await fileStore.put(key, f); rec.files.push({ key, name:f.name, type:f.type, size:f.size }); } catch { toast('Could not save ' + f.name); }
   }
   save(); renderRun(); toast('Saved to Open e-Ms');
 }
 async function dropRec(rec) {
-  for (const f of rec.files) { try { await idbDo('readwrite', st => st.delete(f.key)); } catch {} }
+  for (const f of rec.files) { try { await fileStore.del(f.key); } catch {} }
   state.open = openList().filter(r => r !== rec); save(); renderRun();
 }
 $('e-fields').addEventListener('input', e => { if (dlg && e.target.hasAttribute('data-trk-items')) dlg.itemsText = e.target.value; });
@@ -1292,6 +1304,23 @@ $('page-templates').addEventListener('click', e => {
 
 /* ---------- Init ---------- */
 renderHeader(); route();
+
+/* ---------- Shared storage on the server ---------- */
+async function syncFromServer(first) {
+  try {
+    const j = await (await api('/api/state')).json();
+    const wasOK = serverOK; serverOK = true;
+    if (!j.state) { if (first) { serverRev = 0; await pushState(); } return; }
+    if (j.rev === serverRev && wasOK) return;
+    if (dlg && $('dlg').open) return;
+    serverRev = j.rev;
+    try { localStorage.setItem(KEY, JSON.stringify(j.state)); } catch {}
+    state = load(); renderAll();
+  } catch { if (first) serverOK = false; }
+}
+syncFromServer(true);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && serverOK) syncFromServer(false); });
+window.addEventListener('focus', () => { if (serverOK) syncFromServer(false); });
 })();
 </script>
 </body>
