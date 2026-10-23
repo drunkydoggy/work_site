@@ -494,18 +494,6 @@ ${SIG}` },
 
 If it is rescheduled, a new invitation will follow. Thank you for your understanding.
 ${SIG}` },
-  { id:'venue', cat:'schedule', icon:'📍', name:'Venue / link update', urgent:false,
-    subject:'Venue/link update: {meeting}',
-    body:`Hello all,
-
-The venue / link for {meeting} has changed.
-  • New location / link: {new_location}
-  • Previous: {old_location?}
-  • Date: {meeting_date?}
-  • Time: {meeting_time?}
-
-Please use the updated details.
-${SIG}` },
   { id:'remind', cat:'schedule', icon:'⏰', name:'Reminder / agenda call', urgent:false,
     subject:'Reminder & call for agenda items: {meeting}',
     body:`Hello all,
@@ -544,6 +532,7 @@ function seedMeetings(s) {
 const DEFAULT_MEMBERS = ['A. Scott', 'C. Anderson', 'B. Abramson', 'E. Desmond', 'J. Levy', 'N. Naidoo', 'S. Paquette', 'N. Théberge', 'V. Eatrides'];
 function upgradeEM(s) {
   if (!s.members) s.members = DEFAULT_MEMBERS.map(name => ({ id:uid(), name, f:false }));
+  if (!s.noVenue) { s.noVenue = true; s.templates = (s.templates || []).filter(t => t.id !== 'venue'); }
   if (!s.eatrides) {
     s.eatrides = true;
     if (!s.members.some(x => x.name === 'V. Eatrides')) s.members.push({ id:uid(), name:'V. Eatrides', f:false });
