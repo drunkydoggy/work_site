@@ -231,6 +231,7 @@ code{background:#eef1f8;padding:1px 5px;border-radius:5px;font-size:13px}
       <div class="info" id="ag-info"></div>
       <div class="btns">
         <button class="btn sec" id="clear-flt" data-act="clear-flt">Clear Filters <span class="count" id="flt-count">0</span></button>
+        <button class="btn ok" data-act="toggle-import"><svg class="i"><use href="#i-doc"/></svg>Import Word agenda</button>
         <button class="btn ok" data-act="toggle-paste"><svg class="i"><use href="#i-doc"/></svg>Paste agenda</button>
         <button class="btn" data-act="toggle-add"><svg class="i"><use href="#i-plus"/></svg>Add</button>
       </div>
@@ -242,6 +243,11 @@ code{background:#eef1f8;padding:1px 5px;border-radius:5px;font-size:13px}
         <div><label for="new-dur">Minutes</label><input id="new-dur" type="number" min="0" value="10"></div>
         <button class="btn" data-act="add-item">Add item</button>
       </div>
+    </div>
+    <div class="card hidden" id="import-panel">
+      <div id="imp-drop" class="drop" tabindex="0" role="button" aria-label="Import a Word agenda">📄 <b>Drop the Word agenda (.docx) here</b> or click to browse
+        <input type="file" id="imp-file" accept=".docx" hidden></div>
+      <div id="imp-out"></div>
     </div>
     <div class="card hidden" id="paste-panel">
       <label for="paste">Paste a whole agenda</label>
@@ -514,6 +520,8 @@ ${SIG}` },
 ];
 
 /* ---------- State ---------- */
+const KINDS = [['item', 'Item'], ['other', 'Other'], ['break', 'Break'], ['lunch', 'Lunch']];
+const KIND_ICON = { break:'☕ ', lunch:'🍽️ ' };
 const blankItem = (o = {}) => ({ id:uid(), title:'', speaker:'', duration:10, notes:'', to:'', subject:'', body:'', status:'pending', startedAt:null, ...o });
 const newMeeting = (name, live = false) => ({ id:uid(), name, chair:'', to:'', cc:'', live, agenda:[] });
 const LIVE_MEETINGS = ['FCM', 'TCM', 'BCM'];
@@ -642,9 +650,25 @@ function parseFields(text) {
   });
   return out;
 }
+function resumeVals(ctx) {
+  const a = M().agenda, cur = ctx.item || active();
+  let tgt;
+  if (cur) {
+    const after = a.slice(a.findIndex(i => i.id === cur.id) + 1).find(i => i.status === 'pending');
+    tgt = (cur.kind === 'break' || cur.kind === 'lunch' || (ctx.tpl && ctx.tpl.id === 'endofday')) ? after : cur;
+  } else tgt = a.find(i => i.status === 'pending');
+  if (!tgt) return {};
+  const isItem = (tgt.kind || 'item') === 'item';
+  return { resume_time:tgt.time || '', resume_item:tgt.title, resume_kind_fr:isItem ? "l'article" : 'le point', resume_kind_en:isItem ? 'item' : 'the topic' };
+}
 function defaultFor(f, ctx) {
   const k = f.key;
-  if (k === 'meeting_date' && ctx.tpl && ctx.tpl.cat === 'live') { const n = new Date(), p = x => String(x).padStart(2, '0'); return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`; }
+  if (/^resume_(time|item|kind_fr|kind_en)$/.test(k)) { const r = resumeVals(ctx)[k]; if (r) return r; }
+  if (k === 'meeting_date' && ctx.tpl && ctx.tpl.cat === 'live') {
+    const day = (ctx.item || active() || M().agenda.find(i => i.status === 'pending') || {}).day;
+    if (day) return day;
+    const n = new Date(), p = x => String(x).padStart(2, '0'); return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`;
+  }
   if (k === 'minutes') return f.options.includes('10') ? '10' : f.options[0];
   if (k === 'skipped_item') { const c = nextAfter(ctx.item, true) || remainingItems()[0]; return c ? c.title : ''; }
   if (f.options) return f.options[0];
@@ -942,9 +966,10 @@ function fieldHTML(f) {
     inner = `<textarea data-fk="${k}" rows="3" placeholder="One per line">${esc(cur)}</textarea>`;
   } else if (f.kind === 'time') {
     const [h = '', mi = ''] = cur.split(':'), p = n => String(n).padStart(2, '0');
-    const mm = ['00', '15', '30', '45'].includes(mi) ? mi : (mi ? p(Math.round(+mi / 15) % 4 * 15) : '');
+    const mins = ['00', '15', '30', '45'].concat(mi && !['00', '15', '30', '45'].includes(mi) ? [mi] : []).sort();
+    const mm = mi;
     inner = `<div class="tpick" data-tp="${k}"><select aria-label="Hour"><option value="">--</option>${Array.from({ length: 24 }, (_, i) => `<option${p(i) === h ? ' selected' : ''}>${p(i)}</option>`).join('')}</select> :
-      <select aria-label="Minutes"><option value="">--</option>${['00', '15', '30', '45'].map(x => `<option${x === mm ? ' selected' : ''}>${x}</option>`).join('')}</select></div>`;
+      <select aria-label="Minutes"><option value="">--</option>${mins.map(x => `<option${x === mm ? ' selected' : ''}>${x}</option>`).join('')}</select></div>`;
   } else {
     const type = { date:'date', datetime:'datetime-local' }[f.kind] || 'text';
     inner = `<input data-fk="${k}" type="${type}" value="${esc(cur)}">`;
@@ -1131,7 +1156,7 @@ function renderRun() {
   $('run-sched').innerHTML = state.templates.filter(t => t.cat === 'schedule' && forMeeting(t, m)).map(sb).join('') || '<span class="empty">None</span>';
   $('run-agenda').innerHTML = m.agenda.length ? m.agenda.map((it, i) => `
     <tr class="${it.status}" data-id="${it.id}"><td class="id">${i + 1}</td>
-      <td class="l"><span class="title">${esc(it.title)}</span></td>
+      <td class="l"><span class="title">${KIND_ICON[it.kind] || ''}${esc(it.title)}</span>${it.time ? `<small class="hint" style="display:block">${esc(it.time)}${it.day ? ' · ' + esc(it.day) : ''}</small>` : ''}</td>
       <td>${esc(it.speaker || '—')}</td><td>${esc(it.duration || 0)} min</td>
       <td><span class="badge b-${it.status}">${it.status}</span></td>
       <td><span class="acts">
@@ -1148,6 +1173,8 @@ function startItem(id) {
   const prev = active();
   if (prev && prev !== it) prev.status = 'done';
   it.status = 'active'; it.startedAt = Date.now(); save(); renderRun();
+  if (it.kind === 'break') return openEmail('break', { item:it, vals:{ minutes:String(it.duration || 10) } });
+  if (it.kind === 'lunch') return openEmail('lunch', { item:it });
   openEmail('start', { item:it, prev: prev && prev !== it ? prev : null });
 }
 $('page-run').addEventListener('click', e => {
@@ -1200,6 +1227,9 @@ function editRow(it) {
     <div><label>Title</label><input data-f="title" value="${esc(it.title)}"></div>
     <div><label>Presenter</label><input data-f="speaker" value="${esc(it.speaker)}"></div>
     <div><label>Minutes</label><input data-f="duration" type="number" min="0" value="${esc(it.duration)}"></div>
+    <div><label>Start time</label><input data-f="time" type="time" value="${esc(it.time || '')}"></div>
+    <div><label>Day</label><input data-f="day" type="date" value="${esc(it.day || '')}"></div>
+    <div><label>Type</label><select data-f="kind">${KINDS.map(([v, l]) => `<option value="${v}"${(it.kind || 'item') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
     <div><label>To (overrides meeting default)</label><input data-f="to" value="${esc(it.to)}" placeholder="blank = meeting default"></div>
     <div class="full"><label>Notes / summary</label><input data-f="notes" value="${esc(it.notes)}"></div>
     <div class="full"><label>Custom subject (optional)</label><input data-f="subject" value="${esc(it.subject)}" placeholder="blank = use the “Next item starting” wording"></div>
@@ -1244,6 +1274,7 @@ $('page-setup').addEventListener('click', e => {
   if (act === 'mem-del') { state.members = state.members.filter(q => q.id !== b.closest('.mem-row').dataset.mid); save(); renderMembers(); return; }
   if (act === 'toggle-add') { $('add-panel').classList.toggle('hidden'); if (!$('add-panel').classList.contains('hidden')) $('new-title').focus(); return; }
   if (act === 'toggle-paste') { $('paste-panel').classList.toggle('hidden'); return; }
+  if (act === 'toggle-import') { $('import-panel').classList.toggle('hidden'); return; }
   if (act === 'clear-flt') { Object.keys(flt).forEach(k => delete flt[k]); document.querySelectorAll('[data-flt]').forEach(i => i.value = ''); renderAgendaEditor(); return; }
   if (act === 'edit') { editing.has(id) ? editing.delete(id) : editing.add(id); renderAgendaEditor(); return; }
   if (act === 'add-item') {
@@ -1318,6 +1349,128 @@ $('page-templates').addEventListener('click', e => {
   if (act === 't-preview') return openEmail(t, { preview:true, item: t.role === 'start' ? (active() || M().agenda[0] || null) : undefined });
   if (act === 't-reset') { const d = defaultTemplates().find(x => x.id === t.id); Object.assign(t, d); save(); renderTemplates(); }
   if (act === 't-del') { if (!confirm(`Delete "${t.name}"?`)) return; state.templates = state.templates.filter(x => x !== t); save(); renderTemplates(); }
+});
+
+/* ---------- Word agenda import ---------- */
+const u16 = (d, o) => d[o] | d[o + 1] << 8, u32 = (d, o) => (d[o] | d[o + 1] << 8 | d[o + 2] << 16 | d[o + 3] << 24) >>> 0;
+async function unzipEntry(buf, name) {
+  const d = new Uint8Array(buf);
+  let e = d.length - 22; while (e >= 0 && u32(d, e) !== 0x06054b50) e--;
+  if (e < 0) throw new Error('notzip');
+  let p = u32(d, e + 16);
+  for (let n = u16(d, e + 10); n > 0; n--) {
+    const method = u16(d, p + 10), csize = u32(d, p + 20), nl = u16(d, p + 28), xl = u16(d, p + 30), cl = u16(d, p + 32), lho = u32(d, p + 42);
+    const fn = new TextDecoder().decode(d.subarray(p + 46, p + 46 + nl));
+    if (fn === name) {
+      const start = lho + 30 + u16(d, lho + 26) + u16(d, lho + 28), data = d.subarray(start, start + csize);
+      if (method === 0) return new TextDecoder().decode(data);
+      if (typeof DecompressionStream === 'undefined') throw new Error('nodecomp');
+      const out = await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer();
+      return new TextDecoder().decode(out);
+    }
+    p += 46 + nl + xl + cl;
+  }
+  throw new Error('nodoc');
+}
+function parseTime(s) {
+  const m = /(\d{1,2})(?:[:.h](\d{2}))?\s*([ap])\.?\s*m\.?/i.exec(s) || /(\d{1,2})[:h](\d{2})()/.exec(s);
+  if (!m) return '';
+  let h = +m[1]; const mi = +(m[2] || 0), ap = (m[3] || '').toLowerCase();
+  if (ap === 'p' && h < 12) h += 12; if (ap === 'a' && h === 12) h = 0;
+  return h > 23 || mi > 59 ? '' : String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0');
+}
+const MONTHS = { january:1, february:2, march:3, april:4, may:5, june:6, july:7, august:8, september:9, october:10, november:11, december:12,
+  janvier:1, 'février':2, fevrier:2, mars:3, avril:4, mai:5, juin:6, juillet:7, 'août':8, aout:8, septembre:9, octobre:10, novembre:11, 'décembre':12, decembre:12 };
+function parseDay(s) {
+  let m = /^\s*(?:[a-zé]+,?\s+)?([a-zéûà]+)\s+(\d{1,2}),?\s+(\d{4})\s*$/i.exec(s);
+  let mo, d, y;
+  if (m) { mo = MONTHS[m[1].toLowerCase()]; d = +m[2]; y = +m[3]; }
+  else if ((m = /^\s*(?:[a-zé]+\s+)?(\d{1,2})(?:er)?\s+([a-zéûà]+)\s+(\d{4})\s*$/i.exec(s))) { mo = MONTHS[m[2].toLowerCase()]; d = +m[1]; y = +m[3]; }
+  return mo ? `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}` : '';
+}
+async function parseDocx(file) {
+  const xml = await unzipEntry(await file.arrayBuffer(), 'word/document.xml');
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  const kids = (n, t) => [...n.childNodes].filter(c => c.localName === t);
+  const para = p => {
+    let t = ''; const bullet = !!p.getElementsByTagNameNS('*', 'numPr').length;
+    [...p.getElementsByTagNameNS('*', '*')].forEach(n => { if (n.localName === 't') t += n.textContent; else if (n.localName === 'br' || n.localName === 'tab') t += ' '; });
+    return { t: t.replace(/\s+/g, ' ').trim(), bullet };
+  };
+  const cell = tc => kids(tc, 'p').map(para).filter(x => x.t);
+  const body = doc.getElementsByTagNameNS('*', 'body')[0];
+  const rows = []; let day = '', section = '', last = null;
+  for (const n of [...body.childNodes]) {
+    if (n.localName === 'p') {
+      const t = para(n).t; if (!t) continue;
+      const dd = parseDay(t);
+      if (dd) { day = dd; continue; }
+      if (day && t.length < 80 && !t.includes('|')) section = t;
+      continue;
+    }
+    if (n.localName !== 'tbl') continue;
+    for (const tr of kids(n, 'tr')) {
+      const c = kids(tr, 'tc').map(cell), flat = x => (x || []).map(y => y.t).join(' ');
+      if (c.length < 2 || /^time$|^heure$/i.test(flat(c[0]))) continue;
+      const time = parseTime(flat(c[0]));
+      const mins = (flat(c[1]).match(/(\d+)\s*min/gi) || []).map(x => parseInt(x, 10));
+      const topic = c.length >= 4 ? c[2] : c[c.length - 1] || [], leads = c.length >= 4 ? c[3] : [];
+      const title = topic.filter(x => !x.bullet).map(x => x.t).join(' ');
+      const notes = topic.filter(x => x.bullet).map(x => x.t).join('; ');
+      if (!time && last && mins.length) {
+        last.duration += mins.reduce((a, b) => a + b, 0);
+        last.notes = [last.notes, `${mins.join('+')} min ${title}`.trim()].filter(Boolean).join('; ');
+        const l2 = leads.map(x => x.t).join(', '); if (l2 && !last.speaker.includes(l2)) last.speaker = [last.speaker, l2].filter(Boolean).join(', ');
+        continue;
+      }
+      if (!title && !notes) continue;
+      const kind = /^(break|pause)\b/i.test(title) ? 'break' : /lunch|d[îi]ner/i.test(title) ? 'lunch' : /^item\s*\d/i.test(title) ? 'item' : 'other';
+      last = { inc:true, day, section, time, duration: mins.reduce((a, b) => a + b, 0), kind, title: title.replace(/^item\s*/i, ''), notes, speaker: leads.map(x => x.t).join(', ') };
+      rows.push(last);
+    }
+  }
+  return rows;
+}
+let impRows = [];
+function renderImport() {
+  const o = $('imp-out');
+  if (!impRows.length) { o.innerHTML = ''; return; }
+  o.innerHTML = `<div class="tw"><table class="dt"><thead><tr><th>Use</th><th>Day</th><th>Time</th><th>Min</th><th>Type</th><th>Title</th><th>Lead(s)</th></tr></thead><tbody>${impRows.map((r, i) => `<tr data-i="${i}">
+    <td><input type="checkbox" data-k="inc"${r.inc ? ' checked' : ''} aria-label="Include"></td><td>${esc(r.day || '—')}</td><td>${esc(r.time || '—')}</td><td>${r.duration}</td>
+    <td><select data-k="kind">${KINDS.map(([v, l]) => `<option value="${v}"${r.kind === v ? ' selected' : ''}>${l}</option>`).join('')}</select></td>
+    <td class="l">${esc(r.title)}</td><td>${esc(r.speaker)}</td></tr>`).join('')}</tbody></table></div>
+    <p class="hint">${impRows.filter(r => r.inc).length} rows will be imported. Check the Type column: breaks and lunch get their own emails.</p>
+    <button class="btn" data-act="imp-replace">Replace agenda</button> <button class="btn sec" data-act="imp-add">Add to agenda</button>`;
+}
+async function importFile(f) {
+  if (!f) return;
+  if (/\.doc$/i.test(f.name)) { toast('Please save the agenda as .docx first'); return; }
+  try { impRows = await parseDocx(f); }
+  catch (err) { impRows = []; toast(err.message === 'nodecomp' ? 'This browser cannot read Word files. Try a recent Chrome or Edge' : 'Could not read that file. Is it a .docx?'); renderImport(); return; }
+  if (!impRows.length) toast('No agenda table found in that file');
+  renderImport();
+}
+$('imp-drop').addEventListener('click', () => $('imp-file').click());
+$('imp-drop').addEventListener('dragover', e => { e.preventDefault(); $('imp-drop').classList.add('over'); });
+$('imp-drop').addEventListener('dragleave', () => $('imp-drop').classList.remove('over'));
+$('imp-drop').addEventListener('drop', e => { e.preventDefault(); $('imp-drop').classList.remove('over'); importFile(e.dataTransfer.files[0]); });
+$('imp-file').addEventListener('change', e => { importFile(e.target.files[0]); e.target.value = ''; });
+$('imp-out').addEventListener('change', e => {
+  const tr = e.target.closest('tr[data-i]'); if (!tr) return;
+  const r = impRows[+tr.dataset.i];
+  if (e.target.dataset.k === 'inc') r.inc = e.target.checked; else if (e.target.dataset.k === 'kind') r.kind = e.target.value;
+  renderImport();
+});
+$('imp-out').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  e.stopPropagation();
+  const m = M(), items = impRows.filter(r => r.inc).map(r => blankItem({ title:r.title, speaker:r.speaker, duration:r.duration, notes:r.notes, time:r.time, day:r.day, kind:r.kind, section:r.section }));
+  if (!items.length) { toast('Nothing selected'); return; }
+  if (b.dataset.act === 'imp-replace') {
+    if (m.agenda.length && !confirm(`Replace the ${m.agenda.length} items in "${m.name}"?`)) return;
+    m.agenda = items;
+  } else m.agenda.push(...items);
+  state.undo = null; impRows = []; renderImport(); save(); renderAgendaEditor(); $('import-panel').classList.add('hidden'); toast(items.length + ' items imported');
 });
 
 /* ---------- Init ---------- */
