@@ -164,6 +164,7 @@ code{background:#eef1f8;padding:1px 5px;border-radius:5px;font-size:13px}
     <p class="note hidden" id="run-note">This meeting does not use live status emails. Use the scheduling emails below.</p>
     <div class="live-only"><div class="card" id="run-status"></div>
     <div class="card urgent-wrap"><h3>⚡ Something just happened</h3><div class="qgrid" id="run-quick"></div></div></div>
+    <div class="card hidden" id="run-own-card"><h3 id="run-own-title">✉️ Meeting emails</h3><div class="qgrid" id="run-own"></div></div>
     <div class="card"><h3>📅 Scheduling &amp; logistics</h3><div class="qgrid" id="run-sched"></div></div>
     <div class="live-only"><div class="toolbar"><div class="info">Agenda</div><div class="btns"><button class="btn sec sm" data-act="reset-all">Reset progress</button></div></div>
     <div class="tw"><table class="dt"><thead><tr><th class="id">ID</th><th>Title</th><th>Presenter</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead><tbody id="run-agenda"></tbody></table></div></div>
@@ -279,6 +280,56 @@ const humanize = k => { const s = k.replace(/_/g, ' '); return s.charAt(0).toUpp
 
 /* ---------- Default email wording ---------- */
 const SIG = '\nBest regards,\n{chair}';
+/* Meeting-specific emails (cat 'own'): shown only for the meeting named in `only`. French first, then English. */
+const BBFR_TAIL = 'EFLB Réunion-é / BBFR e-Meeting {meeting_date}';
+const bbfrTemplates = () => {
+  const mk = (id, icon, name, subj, fr, en) => ({ id:'bbfr-' + id, only:'BBFR e-M', cat:'own', icon, name, urgent:false,
+    subject:`${subj}: ${BBFR_TAIL}`, body:`${fr}\n\n________________________________\n\n${en}` });
+  const votes = { fr:'L\'article {item_number} a été {decision_fr:approuvé|rejeté|approuvé tel que modifié} par {for_members}, et {decision2_fr:approuvé|rejeté|approuvé tel que modifié} par {other_members}, ainsi que {abstained_members?} qui se sont abstenus.',
+    en:'Item {item_number} has been {decision_en:approved|rejected|approved as amended} by {for_members}, and {decision2_en:approved|rejected|approved as amended} by {other_members}, and {abstained_members?} who abstained.' };
+  return [
+    mk('announce', '📣', 'Announce', 'Announce: NOUVEAU/NEW',
+      'Veuillez noter qu\'il y aura une réunion du Comité d\'examen des fonds pour la large bande électronique (R-é), le {meeting_date}. {announce_rest_fr}',
+      'Please note that there will be a Broadband Fund Review e-Meeting on {meeting_date}. {announce_rest_en}'),
+    mk('distribution', '📎', 'Distribution', 'Distribution',
+      'Veuillez trouver ci-joint des documents pour votre attention avec une période de réponse de {response_hours:24|48|72} heures – {distribution_rest_fr}',
+      'Please find attached documents for your attention with a response period of {response_hours:24|48|72} hours – {distribution_rest_en}'),
+    mk('agenda', '📝', 'Modifications to the Agenda', 'Modifications to the Agenda: MODIFICATIONS À L\'ORDRE DU JOUR/MODIFICATIONS TO THE AGENDA',
+      'Veuillez noter que l\'ordre du jour de la réunion susmentionnée a été modifié.',
+      'Please note that the agenda of the above-mentioned meeting has been modified.'),
+    mk('date', '📅', 'Date change', 'Date change: CHANGEMENT DE DATE/DATE CHANGE',
+      'Veuillez noter que la date de la réunion susmentionnée a changé. La réunion aura lieu le {new_date}, à {new_time}.',
+      'Please note that the date of the above-mentioned meeting has changed. The meeting will now take place on {new_date} at {new_time}.'),
+    mk('time', '🕒', 'Time change', 'Time change: CHANGEMENT D\'HEURE/TIME CHANGE',
+      'Veuillez noter que l\'heure de la réunion susmentionnée a changé. La réunion aura maintenant lieu à {new_time}.',
+      'Please note that the time of the above-mentioned meeting has changed. The meeting will now take place at {new_time}.'),
+    mk('title', '🏷️', 'Item title change', 'Item Title Change: CHANGEMENT DE TITRE/TITLE CHANGE',
+      'Veuillez noter que le titre de l\'article {item_number} pour la réunion susmentionnée a changé. Le nouveau titre est : {new_title}.',
+      'Please note that the title of item {item_number} for the above-mentioned meeting has changed. The new title is: {new_title}.'),
+    mk('adddocs', '➕', 'Additional documents', 'Additional Documents: DOCUMENTS ADDITIONNELS/ADDITIONAL DOCUMENTS',
+      'Veuillez trouver ci-joint des documents additionnels pour l\'article {item_number} de la réunion susmentionnée.',
+      'Please find attached additional documents for item {item_number} of the above-mentioned meeting.'),
+    mk('revdocs', '🔄', 'Revised documents', 'Revised Documents: DOCUMENTS RÉVISÉS/REVISED DOCUMENTS',
+      'Veuillez trouver ci-joint des documents révisés pour l\'article {item_number} de la réunion susmentionnée.',
+      'Please find attached revised documents for item {item_number} of the above-mentioned meeting.'),
+    mk('deadline', '⏳', 'Revised deadline', 'Revised deadline: DÉLAI RÉVISÉ/REVISED DEADLINE',
+      'Veuillez noter que le délai de réponse pour la réunion susmentionnée a été prolongé jusqu\'à {new_deadline_date}, à {deadline_time}.',
+      'Please note that the response deadline for the above-mentioned meeting has been extended to {new_deadline_date} at {deadline_time}.'),
+    mk('late', '⚠️', 'Late distribution', 'Late distribution: DISTRIBUTION TARDIVE / LATE DISTRIBUTION',
+      'Nous éprouvons actuellement des difficultés techniques et nous travaillons à résoudre la situation dans les meilleurs délais. {late_rest_fr}',
+      'We are currently experiencing technical difficulties and are working to resolve the situation as soon as possible. {late_rest_en}'),
+    mk('signature', '✍️', 'For signature', 'For Signature: FOR SIGNATURE',
+      'Veuillez consulter la chaîne de courriels ci-dessous concernant la réunion susmentionnée et bien vouloir confirmer votre {signature_rest_fr}',
+      'Please review the email chain below regarding the above-mentioned meeting and kindly confirm your {signature_rest_en}'),
+    mk('approval', '✅', 'Approval', 'Approval: APPROBATION/APPROVAL',
+      'Veuillez trouver ci-dessous la liste des Conseillers qui ont participé à cette réunion-é, ainsi que leurs votes :\n\n{members_details}\n\n' + votes.fr,
+      'Please find below the list of Members who participated in this e-Meeting, as well as their votes:\n\n{members_details}\n\n' + votes.en),
+    mk('cancel', '🚫', 'Cancelled', 'Cancelled: ANNULÉE/CANCELLED',
+      'Veuillez noter que la réunion susmentionnée a été annulée et sera reporté à une date ultérieure.',
+      'Please note that the above-mentioned meeting has been cancelled and will be rescheduled to a later date.')
+  ];
+};
+
 const defaultTemplates = () => [
   { id:'start', role:'start', cat:'live', icon:'▶️', name:'Next item starting', urgent:false,
     subject:'[{meeting}] Now starting: {item}',
@@ -430,7 +481,8 @@ Current agenda:
 {agenda_overview?}
 
 Please submit your topics by the deadline.
-${SIG}` }
+${SIG}` },
+  ...bbfrTemplates()
 ];
 
 /* ---------- State ---------- */
@@ -453,6 +505,7 @@ function load() {
     const s = JSON.parse(localStorage.getItem(KEY));
     if (s && s.meetings && s.meetings.length) {
       if (!s.templates || !s.templates.length) s.templates = defaultTemplates();
+      if (!s.bbfrSeeded) { s.bbfrSeeded = true; bbfrTemplates().forEach(t => { if (!s.templates.some(x => x.id === t.id)) s.templates.push(t); }); }
       s.meetings.forEach(m => { m.agenda = (m.agenda || []).map(i => blankItem(i)); if (m.live === undefined) m.live = true; });
       seedMeetings(s);
       return s;
@@ -474,6 +527,7 @@ function load() {
 let state = load();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
 const M = () => state.meetings.find(m => m.id === state.current) || state.meetings[0];
+const forMeeting = (t, m) => !t.only || t.only.trim().toLowerCase() === (m.name || '').trim().toLowerCase();
 const toast = msg => { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 1800); };
 
 /* ---------- Agenda helpers ---------- */
@@ -710,8 +764,12 @@ function renderRun() {
        ${undo ? '<button class="btn sec" data-act="undo">↩ Undo last change</button>' : ''}</div>`;
   const tb = t => `<button class="qbtn${t.urgent ? ' urgent' : ''}" data-tpl="${t.id}"><span class="ic">${esc(t.icon || '✉️')}</span>${esc(t.name)}</button>`;
   const sb = t => `<button class="qbtn small" data-tpl="${t.id}"><span class="ic">${esc(t.icon || '✉️')}</span>${esc(t.name)}</button>`;
-  $('run-quick').innerHTML = state.templates.filter(t => t.cat === 'live' && t.role !== 'start').map(tb).join('') || '<span class="empty">No emails here. Add one under “Email wording”.</span>';
-  $('run-sched').innerHTML = state.templates.filter(t => t.cat === 'schedule').map(sb).join('') || '<span class="empty">None</span>';
+  const own = state.templates.filter(t => t.cat === 'own' && forMeeting(t, m));
+  $('run-own-card').classList.toggle('hidden', !own.length);
+  $('run-own-title').textContent = `✉️ ${m.name} emails`;
+  $('run-own').innerHTML = own.map(sb).join('');
+  $('run-quick').innerHTML = state.templates.filter(t => t.cat === 'live' && t.role !== 'start' && forMeeting(t, m)).map(tb).join('') || '<span class="empty">No emails here. Add one under “Email wording”.</span>';
+  $('run-sched').innerHTML = state.templates.filter(t => t.cat === 'schedule' && forMeeting(t, m)).map(sb).join('') || '<span class="empty">None</span>';
   $('run-agenda').innerHTML = m.agenda.length ? m.agenda.map((it, i) => `
     <tr class="${it.status}" data-id="${it.id}"><td class="id">${i + 1}</td>
       <td class="l"><span class="title">${esc(it.title)}</span></td>
@@ -837,10 +895,11 @@ $('page-setup').addEventListener('click', e => {
 function renderTemplates() {
   $('tpl-list').innerHTML = state.templates.map(t => `
     <div class="card tpl" id="tpl-${t.id}" data-tid="${t.id}">
-      <div class="grid" style="grid-template-columns:70px minmax(160px,2fr) minmax(140px,1fr);align-items:end;margin-bottom:10px">
+      <div class="grid" style="grid-template-columns:70px minmax(160px,2fr) minmax(140px,1fr) minmax(140px,1fr);align-items:end;margin-bottom:10px">
         <div><label>Icon</label><input data-f="icon" value="${esc(t.icon)}"></div>
         <div><label>Button name</label><input data-f="name" value="${esc(t.name)}"></div>
-        <div><label>Shown under</label><select data-f="cat"><option value="live"${t.cat === 'live' ? ' selected' : ''}>Something just happened</option><option value="schedule"${t.cat === 'schedule' ? ' selected' : ''}>Scheduling &amp; logistics</option></select></div>
+        <div><label>Shown under</label><select data-f="cat"><option value="live"${t.cat === 'live' ? ' selected' : ''}>Something just happened</option><option value="schedule"${t.cat === 'schedule' ? ' selected' : ''}>Scheduling &amp; logistics</option><option value="own"${t.cat === 'own' ? ' selected' : ''}>Meeting-specific emails</option></select></div>
+        <div><label>Only for meeting (blank = all)</label><input data-f="only" value="${esc(t.only || '')}" placeholder="e.g. BBFR e-M"></div>
       </div>
       <div class="grid"><div class="full"><label>Subject</label><input data-f="subject" value="${esc(t.subject)}"></div>
       <div class="full"><label>Body</label><textarea data-f="body" rows="10" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px">${esc(t.body)}</textarea></div></div>
