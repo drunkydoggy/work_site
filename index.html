@@ -121,6 +121,11 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .pv-row label{margin:0}
 .pv-body{min-height:260px;font-family:Arial,Helvetica,sans-serif;font-size:12pt;line-height:1.5}
 #mem-box{margin-bottom:14px}
+.vitem{border:1px solid var(--line);background:#fff;padding:10px 12px;margin:6px 0 10px}
+.vhead{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:8px}
+.vhead input{width:110px}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 12px}
+.vgrid label{font-size:13px}
 .tpick{display:flex;align-items:center;gap:6px}
 .tpick select{width:auto;min-width:78px}
 .drop{border:2px dashed #9bb7d4;background:#f4f9fe;padding:14px;text-align:center;margin:10px 0;cursor:pointer;font-size:14px}
@@ -322,8 +327,8 @@ const bbfrTemplates = () => {
       'Veuillez noter qu\'il y aura une réunion du Comité d\'examen des fonds pour la large bande électronique (R-é), le {meeting_date_fr} à {meeting_time_fr} avec un délai de réponse de {response_hours:24|48|72} heures – {reply_date_fr} à {reply_time_fr}.\n\n{description_fr_points}',
       'Please note that there will be an electronic Broadband Fund Review Committee Meeting (e-M), on {meeting_date}, at {meeting_time} with a {response_hours}-hour reply period – {reply_date}, at {reply_time}.\n\n{description_en_points}'),
     mk('distribution', '📎', 'Distribution', 'Distribution',
-      'Veuillez trouver ci-joint des documents pour votre attention avec une période de réponse de {response_hours:24|48|72} heures – {distribution_rest_fr}',
-      'Please find attached documents for your attention with a response period of {response_hours:24|48|72} hours – {distribution_rest_en}'),
+      'Veuillez trouver ci-joint des documents pour votre attention avec une période de réponse de {response_hours:24|48|72} heures',
+      'Please find attached documents for your attention with a response period of {response_hours:24|48|72} hours'),
     mk('agenda', '📝', 'Modifications to the Agenda', 'Modifications to the Agenda: MODIFICATIONS À L\'ORDRE DU JOUR/MODIFICATIONS TO THE AGENDA',
       'Veuillez noter que l\'ordre du jour de la réunion susmentionnée a été modifié.',
       'Please note that the agenda of the above-mentioned meeting has been modified.'),
@@ -352,8 +357,8 @@ const bbfrTemplates = () => {
       'Veuillez consulter la chaîne de courriels ci-dessous concernant la réunion susmentionnée et bien vouloir confirmer votre {signature_rest_fr}',
       'Please review the email chain below regarding the above-mentioned meeting and kindly confirm your {signature_rest_en}'),
     { ...mk('approval', '✅', 'Approval', 'Approval: APPROBATION/APPROVAL',
-      'Veuillez trouver ci-dessous la liste des Conseillers qui ont participé à cette réunion-é, ainsi que leurs votes :\n\n{members_fr}\n\nL\'article {item_number} a été présenté aux Conseillers.\n\nL\'article {item_number} a été {vote_fr}',
-      'Please find below the list of Members who participated in this e-Meeting, as well as their votes:\n\n{members_en}\n\nItem {item_number} was presented to the Commissioners.\n\nItem {item_number} has been {vote_en}'),
+      'Veuillez trouver ci-dessous la liste des Conseillers qui ont participé à cette réunion-é, ainsi que leurs votes :\n\n{members_fr}\n\n{votes_fr}',
+      'Please find below the list of Members who participated in this e-Meeting, as well as their votes:\n\n{members_en}\n\n{votes_en}'),
       subject:'Approval: APPROBATION/APPROVAL : {em_title} {meeting_date}' },
     mk('cancel', '🚫', 'Cancelled', 'Cancelled: ANNULÉE/CANCELLED',
       'Veuillez noter que la réunion susmentionnée a été annulée et sera reporté à une date ultérieure.',
@@ -515,6 +520,14 @@ function seedMeetings(s) {
 const DEFAULT_MEMBERS = ['A. Scott', 'C. Anderson', 'B. Abramson', 'E. Desmond', 'J. Levy', 'N. Naidoo', 'S. Paquette', 'N. Théberge'];
 function upgradeEM(s) {
   if (!s.members) s.members = DEFAULT_MEMBERS.map(name => ({ id:uid(), name, f:false }));
+  if (!s.emV2) {
+    s.emV2 = true;
+    const fresh = bbfrTemplates();
+    s.templates.forEach((t, i) => {
+      if (t.id === 'bbfr-approval') s.templates[i] = fresh.find(x => x.id === t.id);
+      if (t.id === 'bbfr-distribution') t.body = t.body.replace(/ – \{distribution_rest_(fr|en)\}/g, '');
+    });
+  }
   if (s.emShared) return;
   s.emShared = true;
   s.templates.forEach(t => {
@@ -582,7 +595,7 @@ const snapshot = () => { state.undo = { meeting:M().id, snap:M().agenda.map(i =>
 
 /* ---------- Template engine ---------- */
 const PH = /\{(\w+)(\?)?(?::([^}]*))?\}/g;
-const AUTO = new Set(['reply_date','reply_time','meeting','meeting_code','chair','now','today','item','item_speaker','item_duration','item_notes','prev_item','next_item','remaining','return_time','em_title','members_fr','members_en','vote_fr','vote_en']);
+const AUTO = new Set(['reply_date','reply_time','meeting','meeting_code','chair','now','today','item','item_speaker','item_duration','item_notes','prev_item','next_item','remaining','return_time','em_title','members_fr','members_en','votes_fr','votes_en']);
 const TEXTAREA = /(steps|deferred|points|actions|details|notes|overview)$/;
 const BULLET = /(steps|deferred|points|actions|overview)$/;
 
@@ -629,41 +642,42 @@ function emTitle(m) {
   const base = (m.name || '').replace(/\s*e-M/i, '').trim();
   return `${m.fr || FR_CODES[base.toUpperCase()] || base} Réunion-é / ${base} e-Meeting`;
 }
-const VOTES = [['absent', 'Absent'], ['with', 'Agrees'], ['against', 'Against'], ['minority', 'Against + minority opinion'], ['abstain', 'Abstains']];
+const VOTES = [['with', 'Agrees'], ['against', 'Against'], ['minority', 'Against + minority opinion'], ['abstain', 'Abstains']];
 const OUTCOMES = [['approved', 'Approved'], ['approved_mod', 'Approved with modifications'], ['refused', 'Refused']];
 const WORDS = {
   fr: {
     all: { approved:'approuvé par tous.', approved_mod:'approuvé, avec modifications, par tous.', refused:'refusé par tous.' },
     maj: { approved:'approuvé, par majorité, à l\'exception', approved_mod:'approuvé, avec modifications, par majorité, à l\'exception', refused:'refusé, par majorité, à l\'exception' },
     and: ', et ', pp: { approved:'refusé', approved_mod:'refusé', refused:'approuvé' },
-    chair: f => f ? 'Présidente' : 'Président', alt: 'Alternate'
+    chair: f => f ? 'Présidente' : 'Président', alt: 'Alternate', pres: n => `L'article ${n} a été présenté aux Conseillers.`, item: n => `L'article ${n} a été`
   },
   en: {
     all: { approved:'approved by all.', approved_mod:'approved, with modifications, by all.', refused:'refused by all.' },
     maj: { approved:'approved, by majority, with the exception of', approved_mod:'approved, with modifications, by majority, with the exception of', refused:'refused, by majority, with the exception of' },
     and: ', and ', pp: { approved:'refused', approved_mod:'refused', refused:'approved' },
-    chair: () => 'Chairperson', alt: 'Alternate'
+    chair: () => 'Chairperson', alt: 'Alternate', pres: n => `Item ${n} was presented to the Commissioners.`, item: n => `Item ${n} has been`
   }
 };
 function newMem(m) {
-  const rows = state.members.map(x => ({ id:x.id, name:x.name, f:!!x.f, vote:'with', chair:false, alt:false }));
+  const rows = state.members.map(x => ({ id:x.id, name:x.name, f:!!x.f, present:true, chair:false, alt:false }));
   const want = (m.chair || '').trim().toLowerCase();
   const c = rows.find(r => r.id === m.chairId) || rows.find(r => want && r.name.toLowerCase() === want) || rows[0];
   if (c) c.chair = true;
-  return { rows, outcome:'approved' };
+  return { rows, items:[{ num:'', outcome:'approved', votes:{} }] };
 }
 const joinNames = (list, lang) => list.length < 2 ? list.join('') : list.slice(0, -1).join(', ') + (lang === 'fr' ? ' et ' : ' and ') + list[list.length - 1];
 function membersText(lang, mem) {
-  const rows = mem.rows.filter(r => r.vote !== 'absent'), W = WORDS[lang];
+  const rows = mem.rows.filter(r => r.present), W = WORDS[lang];
   return [...rows.filter(r => r.chair), ...rows.filter(r => !r.chair)]
     .map(r => r.name + (r.chair ? ` (${W.chair(r.f)})` : '') + (r.alt ? ` (${W.alt})` : '')).join('\n');
 }
-function voteText(lang, mem) {
-  const W = WORDS[lang], fr = lang === 'fr', rows = mem.rows.filter(r => r.vote !== 'absent');
+function voteText(lang, mem, it) {
+  const W = WORDS[lang], fr = lang === 'fr', rows = mem.rows.filter(r => r.present);
   if (!rows.length) return '';
-  const groups = ['against', 'minority', 'abstain'].map(v => ({ v, list:rows.filter(r => r.vote === v) })).filter(g => g.list.length);
-  if (!groups.length) return W.all[mem.outcome];
-  const pp = W.pp[mem.outcome];
+  const vote = r => it.votes[r.id] || 'with';
+  const groups = ['against', 'minority', 'abstain'].map(v => ({ v, list:rows.filter(r => vote(r) === v) })).filter(g => g.list.length);
+  if (!groups.length) return W.all[it.outcome];
+  const pp = W.pp[it.outcome];
   const clause = g => {
     const pl = g.list.length > 1, fem = g.list.every(r => r.f), names = joinNames(g.list.map(r => r.name), lang);
     let title, verb;
@@ -680,8 +694,12 @@ function voteText(lang, mem) {
     }
     return `${title} ${names}, ${verb}`;
   };
-  return `${W.maj[mem.outcome]} ${groups.map(clause).join(W.and)}.`;
+  return `${W.maj[it.outcome]} ${groups.map(clause).join(W.and)}.`;
 }
+const votesText = (lang, mem) => mem.items.map(it => {
+  const n = it.num.trim() || (lang === 'fr' ? '[Numéro de l\'article]' : '[Item number]'), W = WORDS[lang];
+  return `${W.pres(n)}\n\n${W.item(n)} ${voteText(lang, mem, it)}`;
+}).join('\n\n');
 
 function autoVars(ctx, vals) {
   const m = M(), now = new Date(), mins = parseFloat(vals.minutes);
@@ -697,7 +715,7 @@ function autoVars(ctx, vals) {
     return_time_fr: mins > 0 ? t24fr(`${new Date(now.getTime() + mins * 60000).getHours()}:${new Date(now.getTime() + mins * 60000).getMinutes()}`) : '',
     em_title: emTitle(m),
     members_fr: ctx.mem ? membersText('fr', ctx.mem) : '', members_en: ctx.mem ? membersText('en', ctx.mem) : '',
-    vote_fr: ctx.mem ? voteText('fr', ctx.mem) : '', vote_en: ctx.mem ? voteText('en', ctx.mem) : ''
+    votes_fr: ctx.mem ? votesText('fr', ctx.mem) : '', votes_en: ctx.mem ? votesText('en', ctx.mem) : ''
   };
 }
 function renderText(text, vals, ctx) {
@@ -749,7 +767,7 @@ function openEmail(tpl, opts = {}) {
   const subjText = custom && item.subject.trim() ? item.subject : tpl.subject;
   const bodyText = custom && item.body.trim() ? item.body : tpl.body;
   const fields = parseFields(subjText + '\n' + bodyText);
-  if (/\{(members_fr|members_en|vote_fr|vote_en)\}/.test(subjText + bodyText)) ctx.mem = newMem(m);
+  if (/\{(members_fr|members_en|votes_fr|votes_en)\}/.test(subjText + bodyText)) ctx.mem = newMem(m);
   const vals = {};
   fields.forEach(f => vals[f.key] = defaultFor(f, ctx));
   Object.assign(vals, opts.vals || {});
@@ -767,31 +785,47 @@ function openEmail(tpl, opts = {}) {
   if (first && !fields.length) $('e-mail').focus(); else if (first) first.focus();
 }
 function memHTML(mem) {
-  const head = VOTES.map(([, l]) => `<th>${l}</th>`).join('');
-  const rows = mem.rows.map(r => `<tr data-mid="${r.id}"><td class="l">${esc(r.name)}</td>
-    <td><input type="radio" name="mem-chair" data-mchair="${r.id}" aria-label="Chairperson: ${esc(r.name)}"${r.chair ? ' checked' : ''}></td>
-    ${VOTES.map(([v, l]) => `<td><input type="radio" name="mem-vote-${r.id}" data-mvote="${v}" aria-label="${esc(r.name)}: ${l}"${r.vote === v ? ' checked' : ''}></td>`).join('')}
+  if (!mem.rows.length) return '<div id="mem-box"><p class="empty">No members yet. Add them under Setup → Members.</p></div>';
+  const present = mem.rows.filter(r => r.present);
+  const att = mem.rows.map(r => `<tr data-mid="${r.id}"><td class="l">${esc(r.name)}</td>
+    <td><input type="checkbox" data-mpres aria-label="Present: ${esc(r.name)}"${r.present ? ' checked' : ''}></td>
+    <td><input type="radio" name="mem-chair" data-mchair aria-label="Chairperson: ${esc(r.name)}"${r.chair ? ' checked' : ''}></td>
     <td><input type="checkbox" data-malt aria-label="Alternate: ${esc(r.name)}"${r.alt ? ' checked' : ''}></td></tr>`).join('');
-  return `<div id="mem-box"><label>Decision</label>
-    <div class="chips" style="margin-bottom:12px">${OUTCOMES.map(([v, l]) => `<label class="chip" style="text-transform:none"><input type="radio" name="mem-out" data-mout="${v}"${mem.outcome === v ? ' checked' : ''}> ${l}</label>`).join('')}</div>
-    <label>Who took part, who is Chairperson, and how each voted</label>
-    ${mem.rows.length ? `<div class="tw"><table class="dt mem-t"><thead><tr><th class="l">Member</th><th>Chair</th>${head}<th>Alternate</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="empty">No members yet. Add them under Setup → Members.</p>'}</div>`;
+  const items = mem.items.map((it, n) => `<div class="vitem" data-i="${n}">
+    <div class="vhead"><label>Item
+      <input data-inum value="${esc(it.num)}" placeholder="e.g. 3.1"></label>
+      <label>Decision <select data-iout>${OUTCOMES.map(([v, l]) => `<option value="${v}"${it.outcome === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+      ${mem.items.length > 1 ? '<button type="button" class="btn sec sm" data-idel aria-label="Remove item">🗑 Remove</button>' : ''}</div>
+    <div class="vgrid">${present.map(r => `<label data-mid="${r.id}">${esc(r.name)}
+      <select data-ivote>${VOTES.map(([v, l]) => `<option value="${v}"${(it.votes[r.id] || 'with') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`).join('') || '<span class="hint">Tick at least one member as present.</span>'}</div></div>`).join('');
+  return `<div id="mem-box"><label>1. Who took part, and who chairs</label>
+    <div class="tw"><table class="dt mem-t"><thead><tr><th class="l">Member</th><th>Present</th><th>Chair</th><th>Alternate</th></tr></thead><tbody>${att}</tbody></table></div>
+    <label>2. Items and how each member voted</label>${items}
+    <button type="button" class="btn sec sm" data-iadd>＋ Add another item</button></div>`;
 }
-$('e-fields').addEventListener('change', e => {
+const memEvent = e => {
   const t = e.target, mem = dlg && dlg.ctx.mem; if (!mem) return;
-  const row = t.closest('tr[data-mid]'), r = row && mem.rows.find(x => x.id === row.dataset.mid);
-  if (t.dataset.mout) mem.outcome = t.dataset.mout;
-  else if (t.dataset.mvote && r) {
-    r.vote = t.dataset.mvote;
-    if (r.vote === 'absent' && r.chair) { r.chair = false; const c = mem.rows.find(x => x.vote !== 'absent'); if (c) c.chair = true; $('mem-box').outerHTML = memHTML(mem); }
-  } else if (t.dataset.mchair) {
-    mem.rows.forEach(x => x.chair = x.id === t.dataset.mchair);
-    const c = mem.rows.find(x => x.chair);
-    if (c && c.vote === 'absent') { c.vote = 'with'; $('mem-box').outerHTML = memHTML(mem); }
-    M().chairId = t.dataset.mchair; save();
-  } else if (t.hasAttribute('data-malt') && r) r.alt = t.checked;
+  const row = t.closest('[data-mid]'), r = row && mem.rows.find(x => x.id === row.dataset.mid);
+  const box = t.closest('[data-i]'), it = box && mem.items[+box.dataset.i];
+  const redraw = () => { $('mem-box').outerHTML = memHTML(mem); };
+  const fixChair = () => {
+    if (!mem.rows.some(x => x.chair && x.present)) { mem.rows.forEach(x => x.chair = false); const c = mem.rows.find(x => x.present); if (c) c.chair = true; }
+  };
+  if (t.hasAttribute('data-inum') && it) it.num = t.value;
+  else if (t.hasAttribute('data-iout') && it) it.outcome = t.value;
+  else if (t.hasAttribute('data-ivote') && it && r) it.votes[r.id] = t.value;
+  else if (t.hasAttribute('data-mpres') && r && e.type === 'change') { r.present = t.checked; fixChair(); redraw(); }
+  else if (t.hasAttribute('data-mchair') && r && e.type === 'change') { mem.rows.forEach(x => x.chair = x === r); r.present = true; M().chairId = r.id; save(); redraw(); }
+  else if (t.hasAttribute('data-malt') && r) r.alt = t.checked;
   else return;
   regen();
+};
+['input', 'change'].forEach(ev => $('e-fields').addEventListener(ev, memEvent));
+$('e-fields').addEventListener('click', e => {
+  const mem = dlg && dlg.ctx.mem, b = e.target.closest('[data-iadd],[data-idel]'); if (!mem || !b) return;
+  if (b.hasAttribute('data-iadd')) mem.items.push({ num:'', outcome:'approved', votes:{} });
+  else mem.items.splice(+b.closest('[data-i]').dataset.i, 1);
+  $('mem-box').outerHTML = memHTML(mem); regen();
 });
 function fieldHTML(f) {
   const k = f.key, cur = dlg.vals[k] ?? '', label = humanize(k) + (f.optional ? ' (optional)' : '');
