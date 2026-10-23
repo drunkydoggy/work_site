@@ -765,7 +765,6 @@ function renderAgendaEditor() {
     : `<tr class="empty-row"><td colspan="6">${total ? 'No items match the filters.' : 'No items yet. Click Add to create one.'}</td></tr>`;
 }
 $('page-setup').addEventListener('input', e => {
-  $('page-setup').addEventListener('input', e => {
   const el = e.target;
   if (el.dataset.m) { M()[el.dataset.m] = el.value; save(); if (el.dataset.m === 'name') renderHeader(); return; }
   if (el.dataset.flt) { flt[el.dataset.flt] = el.value.trim(); renderAgendaEditor(); return; }
