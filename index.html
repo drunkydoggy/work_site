@@ -334,46 +334,27 @@ const bbfrTemplates = () => {
   ];
 };
 
+/* In-person hearing emails (FCM / TCM / BCM): French first, divider, then English. */
+const INTERP_FR = '  • Le service d\'interprétation est disponible pour cette réunion. Merci d\'être soucieux de votre volume et de votre débit.\n  • N\'oubliez pas qu\'un casque d\'écoute est requis lorsque vous prenez la parole.';
+const INTERP_EN = '  • Interpretation service is available for this meeting. Please be mindful of your volume and pace.\n  • Also, remember that a headset is required when speaking.';
+const DIV = '\n\n________________________________\n\n';
+const inPersonTemplates = () => {
+  const mk = (id, icon, name, subj, fr, en, extra = {}) => ({ id, cat:'live', icon, name, urgent:false, only:'FCM, TCM, BCM', subject:`${subj}{meeting_code} {meeting_date}`, body:fr + DIV + en, ...extra });
+  const what = 'avec {resume_kind_fr:la présentation|l\'article|le point} {resume_item}';
+  const whatEn = 'with {resume_kind_en:the presentation|item|the topic} {resume_item}';
+  return [
+    mk('start', '▶️', 'Next item starting', '', `Le Conseil considère actuellement l'article {item}\n\n${INTERP_FR}`, `The Commission is currently considering item {item}\n\n${INTERP_EN}`, { role:'start', only:'' }),
+    mk('presentation', '🎤', 'Presentation', 'Presentation: ', `Le Conseil considère actuellement la présentation de {item}\n\n${INTERP_FR}`, `The Commission is currently considering the presentation of {item}\n\n${INTERP_EN}`),
+    mk('break', '☕', 'Break', 'Break: ', `Le Conseil prend une pause et reprendra à {return_time_fr} ${what}.`, `The Commission is taking a break and will resume at {return_time} ${whatEn}.`, { urgent:true }),
+    mk('lunch', '🍽️', 'Lunch break', 'Lunch Break: ', `Le Conseil prend une pause pour le dîner et reprendra à {resume_time_fr} ${what}.`, `The Commission is taking a lunch break and will resume at {resume_time} ${whatEn}.`),
+    mk('endofday', '🌙', 'End of day', 'End of day: ', `Le Conseil a fini pour la journée et reprendra demain à {resume_time_fr} ${what}.`, `The Commission has finished for the day and will resume tomorrow at {resume_time} ${whatEn}.`),
+    mk('earlystart', '⏪', 'Early start', 'Early Start: CHANGEMENT D\'HEURE/TIME CHANGE: ', `Veuillez noter que la réunion susmentionnée débutera plus tôt que l'heure prévue à l'ordre du jour. Elle débutera à {new_time_fr}.`, `Please note that the above-mentioned meeting will start earlier than the time scheduled on the agenda. It will start at {new_time}.`),
+    mk('latestart', '⏩', 'Late start', 'Late Start: CHANGEMENT D\'HEURE/TIME CHANGE: ', `Veuillez noter que la réunion susmentionnée débutera plus tard que l'heure prévue à l'ordre du jour. Elle débutera à {new_time_fr}.`, `Please note that the above-mentioned meeting will start later than the time scheduled on the agenda. It will start at {new_time}.`)
+  ];
+};
+
 const defaultTemplates = () => [
-  { id:'start', role:'start', cat:'live', icon:'▶️', name:'Next item starting', urgent:false,
-    subject:'[{meeting}] Now starting: {item}',
-    body:`Hello all,
-
-Update from {meeting}:
-  • Concluded: {prev_item?}
-  • Now starting: {item}
-  • Presenter: {item_speaker?}
-  • Allotted time: {item_duration?}
-  • Summary: {item_notes?}
-  • Started at: {now}
-  • Up next: {next_item?}
-${SIG}` },
-  { id:'status', role:'status', cat:'live', icon:'📣', name:'Status update', urgent:false,
-    subject:'[{meeting}] Status update: {item}',
-    body:`Hello all,
-
-Quick progress update from {meeting}:
-  • Current item: {item}
-  • Progress: {progress:Just started|About 25% done|About halfway|About 75% done|Wrapping up}
-  • Timing: {timing:On schedule|Running slightly behind|Running behind schedule|Running ahead of schedule}
-  • Time now: {now}
-  • Up next: {next_item?}
-
-Key points so far:
-{points?}
-${SIG}` },
-  { id:'break', cat:'live', icon:'☕', name:'Unscheduled break', urgent:true,
-    subject:'[{meeting}] {minutes:5|10|15|30}-minute break – resuming at {return_time}',
-    body:`Hello all,
-
-We are taking an unscheduled break.
-  • Break started: {now}
-  • Expected return: {return_time}
-  • Resuming with: {item?}
-  • Note: {note?}
-
-Please rejoin promptly at {return_time}.
-${SIG}` },
+  ...inPersonTemplates(),
   { id:'tech', cat:'live', icon:'🛠️', name:'Technical issue', urgent:true,
     subject:'[{meeting}] Paused – {issue:Audio|Screen Share|Network|Breakout Rooms} issue (resuming about {return_time})',
     body:`Hello all,
@@ -510,6 +491,12 @@ function load() {
     if (s && s.meetings && s.meetings.length) {
       if (!s.templates || !s.templates.length) s.templates = defaultTemplates();
       if (!s.bbfrSeeded) { s.bbfrSeeded = true; bbfrTemplates().forEach(t => { if (!s.templates.some(x => x.id === t.id)) s.templates.push(t); }); }
+      if (!s.inPersonV1) {
+        s.inPersonV1 = true;
+        const fresh = inPersonTemplates(), ids = new Set(fresh.map(t => t.id).concat('status'));
+        const rest = s.templates.filter(t => !ids.has(t.id));
+        s.templates = fresh.concat(rest);
+      }
       if (!s.announceV2) { s.announceV2 = true; const i = s.templates.findIndex(x => x.id === 'bbfr-announce'); if (i >= 0) s.templates[i] = bbfrTemplates()[0]; }
       s.meetings.forEach(m => { m.agenda = (m.agenda || []).map(i => blankItem(i)); if (m.live === undefined) m.live = true; });
       seedMeetings(s);
@@ -532,7 +519,7 @@ function load() {
 let state = load();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
 const M = () => state.meetings.find(m => m.id === state.current) || state.meetings[0];
-const forMeeting = (t, m) => !t.only || t.only.trim().toLowerCase() === (m.name || '').trim().toLowerCase();
+const forMeeting = (t, m) => !t.only || t.only.split(',').some(n => n.trim().toLowerCase() === (m.name || '').trim().toLowerCase());
 const toast = msg => { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 1800); };
 
 /* ---------- Agenda helpers ---------- */
@@ -548,7 +535,7 @@ const snapshot = () => { state.undo = { meeting:M().id, snap:M().agenda.map(i =>
 
 /* ---------- Template engine ---------- */
 const PH = /\{(\w+)(\?)?(?::([^}]*))?\}/g;
-const AUTO = new Set(['reply_date','reply_time','meeting','chair','now','today','item','item_speaker','item_duration','item_notes','prev_item','next_item','remaining','return_time']);
+const AUTO = new Set(['reply_date','reply_time','meeting','meeting_code','chair','now','today','item','item_speaker','item_duration','item_notes','prev_item','next_item','remaining','return_time']);
 const TEXTAREA = /(steps|deferred|points|actions|details|notes|overview)$/;
 const BULLET = /(steps|deferred|points|actions|overview)$/;
 
@@ -575,6 +562,7 @@ function parseFields(text) {
 }
 function defaultFor(f, ctx) {
   const k = f.key;
+  if (k === 'meeting_date' && ctx.tpl && ctx.tpl.cat === 'live') { const n = new Date(), p = x => String(x).padStart(2, '0'); return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`; }
   if (k === 'minutes') return f.options.includes('10') ? '10' : f.options[0];
   if (k === 'skipped_item') { const c = nextAfter(ctx.item, true) || remainingItems()[0]; return c ? c.title : ''; }
   if (f.options) return f.options[0];
@@ -592,18 +580,20 @@ function autoVars(ctx, vals) {
   const m = M(), now = new Date(), mins = parseFloat(vals.minutes);
   const skip = (vals.skipped_item || '').trim();
   return {
-    meeting: m.name || 'Meeting', chair: m.chair || '', now: clock(now),
+    meeting: m.name || 'Meeting', meeting_code: ({ FCM:'RPC/FCM', BCM:'RCR/BCM', TCM:'RCT/TCM' })[(m.name || '').trim().toUpperCase()] || m.name || 'Meeting', chair: m.chair || '', now: clock(now),
     today: now.toLocaleDateString([], {weekday:'long', year:'numeric', month:'long', day:'numeric'}),
     item: ctx.item ? ctx.item.title : '', item_speaker: ctx.item ? ctx.item.speaker : '',
     item_duration: ctx.item && ctx.item.duration ? ctx.item.duration + ' min' : '', item_notes: ctx.item ? ctx.item.notes : '',
     prev_item: ctx.prev ? ctx.prev.title : '', next_item: ctx.next ? ctx.next.title : '',
     remaining: remainingItems().filter(i => !skip || i.title !== skip).map(itemLine).join('\n'),
-    return_time: mins > 0 ? clock(new Date(now.getTime() + mins * 60000)) : ''
+    return_time: mins > 0 ? clock(new Date(now.getTime() + mins * 60000)) : '',
+    return_time_fr: mins > 0 ? t24fr(`${new Date(now.getTime() + mins * 60000).getHours()}:${new Date(now.getTime() + mins * 60000).getMinutes()}`) : ''
   };
 }
 function renderText(text, vals, ctx) {
   const auto = autoVars(ctx, vals);
   const val = key => {
+    if (key in auto) return auto[key];
     const fr = /(?:date|time)_fr$/.test(key); if (fr) key = key.slice(0, -3);
     let v;
     if (key === 'reply_date' || key === 'reply_time') {
@@ -644,7 +634,7 @@ function openEmail(tpl, opts = {}) {
   if (!tpl) return;
   const m = M();
   const item = opts.item !== undefined ? opts.item : active();
-  const ctx = { item, prev: opts.prev || null, next: nextAfter(item, !!opts.preview) };
+  const ctx = { item, tpl, prev: opts.prev || null, next: nextAfter(item, !!opts.preview) };
   const custom = tpl.role === 'start' && item;
   const subjText = custom && item.subject.trim() ? item.subject : tpl.subject;
   const bodyText = custom && item.body.trim() ? item.body : tpl.body;
