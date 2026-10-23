@@ -649,13 +649,13 @@ const WORDS = {
     all: { approved:'approuvé par tous.', approved_mod:'approuvé, avec modifications, par tous.', refused:'refusé par tous.' },
     maj: { approved:'approuvé, par majorité, à l\'exception', approved_mod:'approuvé, avec modifications, par majorité, à l\'exception', refused:'refusé, par majorité, à l\'exception' },
     and: ', et ', pp: { approved:'refusé', approved_mod:'refusé', refused:'approuvé' },
-    chair: f => f ? 'Présidente' : 'Président', alt: 'Alternate', pres: n => `L'article ${n} a été présenté aux Conseillers.`, item: n => `L'article ${n} a été`
+    chair: f => f ? 'Présidente' : 'Président', alt: 'Alternate', item: n => `L'article ${n} a été`
   },
   en: {
     all: { approved:'approved by all.', approved_mod:'approved, with modifications, by all.', refused:'refused by all.' },
     maj: { approved:'approved, by majority, with the exception of', approved_mod:'approved, with modifications, by majority, with the exception of', refused:'refused, by majority, with the exception of' },
     and: ', and ', pp: { approved:'refused', approved_mod:'refused', refused:'approved' },
-    chair: () => 'Chairperson', alt: 'Alternate', pres: n => `Item ${n} was presented to the Commissioners.`, item: n => `Item ${n} has been`
+    chair: () => 'Chairperson', alt: 'Alternate', item: n => `Item ${n} has been`
   }
 };
 function newMem(m) {
@@ -698,7 +698,7 @@ function voteText(lang, mem, it) {
 }
 const votesText = (lang, mem) => mem.items.map(it => {
   const n = it.num.trim() || (lang === 'fr' ? '[Numéro de l\'article]' : '[Item number]'), W = WORDS[lang];
-  return `${W.pres(n)}\n\n${W.item(n)} ${voteText(lang, mem, it)}`;
+  return `${W.item(n)} ${voteText(lang, mem, it)}`;
 }).join('\n\n');
 
 function autoVars(ctx, vals) {
