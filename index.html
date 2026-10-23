@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Meeting Mailer – Status, Scramble &amp; Scheduling Emails</title>
+<title>Meeting Mailer</title>
 <style>
 :root{
   --bg:#f3f5f9;--panel:#fff;--ink:#1c2333;--muted:#667085;--line:#e2e6ee;
@@ -11,593 +11,772 @@
   --radius:12px;--shadow:0 1px 3px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.05);
 }
 *{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:80px}
 body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
-html{scroll-behavior:smooth;scroll-padding-top:70px}
 header.top{background:#161b2e;color:#cfd5e6;position:sticky;top:0;z-index:5}
-header.top .in{max-width:960px;margin:0 auto;padding:10px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+header.top .in{max-width:1000px;margin:0 auto;padding:10px 20px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 header.top strong{color:#fff;font-size:16px}
-header.top nav{display:flex;gap:4px;flex-wrap:wrap}
-header.top a{color:#cfd5e6;text-decoration:none;padding:6px 10px;border-radius:8px;font-size:14px}
-header.top a:hover,header.top a:focus-visible{background:#242b45;outline:none}
-header.top a.sos{color:#ffa8a8}
-main{max-width:960px;margin:0 auto;padding:24px 20px 60px;min-width:0}
-section.view{margin-bottom:40px}
+header.top select{width:auto;min-width:200px;max-width:100%;font-weight:600;background:#242b45;color:#fff;border-color:#3a4366}
+header.top nav{display:flex;gap:4px;margin-left:auto}
+header.top nav a{color:#cfd5e6;text-decoration:none;padding:6px 12px;border-radius:8px;font-size:14px}
+header.top nav a:hover{background:#242b45}
+header.top nav a[aria-current=page]{background:var(--brand);color:#fff}
+main{max-width:1000px;margin:0 auto;padding:22px 20px 70px}
+.page{display:none}.page.active{display:block}
 h2{margin:0 0 4px;font-size:22px}
-.sub{color:var(--muted);margin:0 0 18px}
-h1.page{font-size:30px;margin:8px 0 6px}
-.lead{color:var(--muted);margin:0 0 32px}
+h3{margin:0 0 10px;font-size:16px}
+.sub{color:var(--muted);margin:0 0 16px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
-.card h3{margin:0 0 12px;font-size:16px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
 .grid .full{grid-column:1/-1}
 label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.03em}
 input,select,textarea{width:100%;font:inherit;padding:8px 10px;border:1px solid #cdd3e0;border-radius:8px;background:#fff;color:var(--ink)}
 textarea{resize:vertical;min-height:70px}
 input:focus,select:focus,textarea:focus{outline:2px solid #bac8ff;border-color:var(--brand)}
+input[type=checkbox]{width:auto}
 .btn{font:inherit;font-weight:600;border:1px solid transparent;border-radius:8px;padding:8px 14px;cursor:pointer;background:var(--brand);color:#fff}
 .btn:hover{background:var(--brand-d)}
 .btn.sec{background:#fff;color:var(--ink);border-color:#cdd3e0}
 .btn.sec:hover{background:#f1f3f9}
-.btn.danger{background:var(--red)}
-.btn.danger:hover{background:#c92a2a}
-.btn.warn{background:var(--warn)}
-.btn.warn:hover{background:#cc6a00}
 .btn.sm{padding:4px 9px;font-size:13px}
+.btn.big{font-size:18px;padding:16px 22px;flex:1;min-width:240px;text-align:left}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.hint{font-size:13px;color:var(--muted)}
+.empty{color:var(--muted);font-style:italic}
+.hidden{display:none!important}
 .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle}
 .b-pending{background:#e9ecef;color:#495057}.b-active{background:#d3f9d8;color:var(--ok)}
 .b-done{background:#dbe4ff;color:var(--brand-d)}.b-skipped{background:#fff3bf;color:#9c6500}
-.agenda{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-.agenda li{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;background:#fff}
-.agenda li.active{border-color:#69db7c;background:#f4fcf5}
-.agenda li.done,.agenda li.skipped{opacity:.7}
-.agenda .num{font-weight:700;color:var(--muted);width:24px}
-.agenda .meta{color:var(--muted);font-size:13px}
-.agenda .title{font-weight:600}
-.now{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* Run */
+.now{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
 .now .box{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fafbfe}
 .now .box.cur{background:#f4fcf5;border-color:#69db7c}
 .now h4{margin:0 0 4px;font-size:12px;text-transform:uppercase;color:var(--muted);letter-spacing:.04em}
-.sos-card{border:2px solid #ffc9c9;background:#fff5f5}
-.sos-card h3{color:var(--red)}
+.now .t{font-weight:700;font-size:17px}
+.meta{color:var(--muted);font-size:13px}
+.qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.qbtn{font:inherit;font-weight:700;font-size:16px;padding:18px 12px;border-radius:12px;border:2px solid #cdd3e0;background:#fff;color:var(--ink);cursor:pointer;text-align:center}
+.qbtn:hover{border-color:var(--brand);background:#f5f7ff}
+.qbtn .ic{display:block;font-size:26px;margin-bottom:4px}
+.qbtn.urgent{background:var(--red);border-color:var(--red);color:#fff}
+.qbtn.urgent:hover{background:#c92a2a}
+.qbtn.small{font-size:14px;padding:12px 8px;font-weight:600}
+.qbtn.small .ic{font-size:20px}
+.urgent-wrap{border:2px solid #ffc9c9;background:#fff5f5}
+.alist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.alist li{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;background:#fff}
+.alist li.active{border-color:#69db7c;background:#f4fcf5}
+.alist li.done,.alist li.skipped{opacity:.65}
+.num{font-weight:700;color:var(--muted);width:24px}
+.title{font-weight:600}
+
+/* Setup */
+.item{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;background:#fff}
+.item-top{display:grid;grid-template-columns:auto minmax(140px,2fr) minmax(100px,1fr) 70px auto;gap:8px;align-items:center}
+.item details{margin-top:8px}
+.item summary{cursor:pointer;color:var(--brand);font-size:13px}
+.item .more{margin-top:8px}
+.tpl h3{display:flex;gap:8px;align-items:center}
+
+/* Dialog */
+dialog{width:min(780px,96vw);max-height:94vh;border:none;border-radius:14px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.35);color:var(--ink)}
+dialog::backdrop{background:rgba(10,15,30,.55)}
+.dlg-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px}
+.dlg-head h3{margin:0;font-size:19px}
+.fields{display:grid;gap:12px;margin-bottom:14px;padding:12px;background:#f7f8fc;border-radius:10px}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
-.chip{border:1px solid #cdd3e0;background:#fff;border-radius:99px;padding:6px 14px;cursor:pointer;font:inherit;font-size:14px}
-.chip[aria-pressed=true]{background:var(--red);border-color:var(--red);color:#fff}
-.hint{font-size:13px;color:var(--muted)}
-.return{font-size:18px;font-weight:700;color:var(--red)}
-.pv-row{display:grid;grid-template-columns:62px 1fr;gap:8px;align-items:center;margin-bottom:8px}
+.chip{border:1px solid #cdd3e0;background:#fff;border-radius:99px;padding:8px 16px;cursor:pointer;font:inherit;font-size:15px;font-weight:600}
+.chip[aria-pressed=true]{background:var(--brand);border-color:var(--brand);color:#fff}
+.chip.urg[aria-pressed=true]{background:var(--red);border-color:var(--red)}
+.other{margin-top:8px;max-width:240px}
+.pv-row{display:grid;grid-template-columns:64px 1fr;gap:8px;align-items:center;margin-bottom:8px}
 .pv-row label{margin:0}
-.pv-body{min-height:300px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.5}
-.empty{color:var(--muted);font-style:italic}
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:#161b2e;color:#fff;padding:10px 18px;border-radius:8px;transition:.25s;z-index:9;opacity:0}
+.pv-body{min-height:260px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.5}
+.dlg-actions{position:sticky;bottom:-20px;background:#fff;padding:12px 0 2px;margin-top:8px;border-top:1px solid var(--line)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:#161b2e;color:#fff;padding:10px 18px;border-radius:8px;transition:.25s;z-index:99;opacity:0;pointer-events:none}
 .toast.show{transform:translateX(-50%);opacity:1}
-.hidden{display:none!important}
+code{background:#eef1f8;padding:1px 5px;border-radius:5px;font-size:13px}
 @media(max-width:720px){
-  main{padding:16px 14px 40px}
+  main{padding:14px 12px 50px}
+  header.top nav{margin-left:0;width:100%}
   .now{grid-template-columns:1fr}
-  .agenda li{grid-template-columns:auto 1fr}
-  .agenda li .row{grid-column:1/-1}
+  .alist li{grid-template-columns:auto 1fr}
+  .alist li .row{grid-column:1/-1}
+  .item-top{grid-template-columns:1fr 1fr}
+  .item-top .num{display:none}
+  .item-top input:first-of-type{grid-column:1/-1}
+  .pv-row{grid-template-columns:1fr}
 }
 </style>
 </head>
 <body>
 <header class="top"><div class="in">
   <strong>✉️ Meeting Mailer</strong>
-  <nav aria-label="Sections">
-    <a href="#setup">1. Settings &amp; Agenda</a>
-    <a href="#live">2. Live Tracker</a>
-    <a href="#scramble" class="sos">3. Scramble</a>
-    <a href="#schedule">4. Scheduling</a>
-    <a href="#preview">5. Email Preview</a>
+  <select id="meeting-select" aria-label="Meeting type"></select>
+  <nav aria-label="Pages">
+    <a href="#run" data-page="run">Run meeting</a>
+    <a href="#setup" data-page="setup">Setup</a>
+    <a href="#templates" data-page="templates">Email wording</a>
   </nav>
 </div></header>
 
-  <main>
-    <h1 class="page">Meeting Status &amp; Scheduling Emails</h1>
-    <p class="lead">Set up your meeting once, then generate status, emergency and scheduling emails. Everything is saved in this browser.</p>
-    <!-- Section 1 -->
-    <section class="view" id="setup">
-      <h2>1. Global Settings &amp; Agenda</h2>
-      <p class="sub">Defaults used in every generated email.</p>
-      <div class="card">
-        <h3>Meeting defaults</h3>
-        <div class="grid">
-          <div><label for="s-title">Meeting title</label><input id="s-title" placeholder="Weekly Project Sync"></div>
-          <div><label for="s-chair">Chairperson</label><input id="s-chair" placeholder="Jane Doe"></div>
-          <div><label for="s-to">Default To</label><input id="s-to" placeholder="a@x.com, b@x.com"></div>
-          <div><label for="s-cc">Default CC</label><input id="s-cc" placeholder="c@x.com"></div>
-        </div>
-      </div>
-      <div class="card">
-        <h3 id="ag-form-title">Add agenda item</h3>
-        <div class="grid">
-          <div><label for="a-title">Item number / title</label><input id="a-title" placeholder="1. Budget review"></div>
-          <div><label for="a-speaker">Speaker / presenter</label><input id="a-speaker"></div>
-          <div><label for="a-dur">Duration (min)</label><input id="a-dur" type="number" min="0" value="10"></div>
-          <div><label for="a-to">Item-specific To (optional)</label><input id="a-to" placeholder="blank = default recipients"></div>
-          <div class="full"><label for="a-notes">Brief summary / notes</label><textarea id="a-notes"></textarea></div>
-        </div>
-        <div class="row" style="margin-top:12px">
-          <button class="btn" id="a-save">Add item</button>
-          <button class="btn sec hidden" id="a-cancel">Cancel edit</button>
-        </div>
-      </div>
-      <div class="card">
-        <div class="row" style="justify-content:space-between;margin-bottom:10px">
-          <h3 style="margin:0">Agenda <span class="hint" id="ag-total"></span></h3>
-          <div class="row">
-            <button class="btn sec sm" id="ag-reset">Reset progress</button>
-            <button class="btn sec sm" id="ag-clear">Clear agenda</button>
-          </div>
-        </div>
-        <ul class="agenda" id="agenda"></ul>
-      </div>
-    </section>
+<main>
+  <!-- RUN -->
+  <section class="page" id="page-run">
+    <h2 id="run-title">Run meeting</h2>
+    <p class="sub">Pick what is happening. The email is written for you, ready to send.</p>
+    <div class="card" id="run-status"></div>
+    <div class="card urgent-wrap"><h3>⚡ Something just happened</h3><div class="qgrid" id="run-quick"></div></div>
+    <div class="card"><h3>📅 Scheduling &amp; logistics</h3><div class="qgrid" id="run-sched"></div></div>
+    <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h3 style="margin:0">Agenda</h3><button class="btn sec sm" data-act="reset-all">Reset progress</button></div><ul class="alist" id="run-agenda"></ul></div>
+  </section>
 
-    <!-- Section 2 -->
-    <section class="view" id="live">
-      <h2>2. Live Progress Tracker</h2>
-      <p class="sub">Advance the meeting and notify stakeholders in one click.</p>
-      <div class="card">
-        <div class="now">
-          <div class="box cur"><h4>Current item</h4><div id="l-cur"></div></div>
-          <div class="box"><h4>Up next</h4><div id="l-next"></div></div>
-        </div>
-        <div class="row" style="margin-top:14px">
-          <button class="btn" id="l-start">Start Next Item</button>
-          <button class="btn sec" id="l-progress">In-Progress Status Update</button>
-          <button class="btn sec" id="l-finish">Finish last item</button>
-        </div>
-      </div>
-      <div class="card">
-        <h3>Status update details</h3>
-        <div class="grid">
-          <div><label for="l-pct">Progress</label>
-            <select id="l-pct"><option value="">Not specified</option><option>Just started</option><option>About 25% complete</option><option>About halfway</option><option>About 75% complete</option><option>Wrapping up</option></select></div>
-          <div><label for="l-timing">Timing</label>
-            <select id="l-timing"><option>On schedule</option><option>Running slightly behind</option><option>Running behind schedule</option><option>Running ahead of schedule</option></select></div>
-          <div class="full"><label for="l-note">Key points / decisions so far</label><textarea id="l-note" placeholder="One point per line"></textarea></div>
-        </div>
-        <p class="hint">Click “In-Progress Status Update” to (re)generate after editing.</p>
-      </div>
-    </section>
-
-    <!-- Section 3 -->
-    <section class="view" id="scramble">
-      <h2>3. Scramble Quick Actions</h2>
-      <p class="sub">Unexpected change mid-meeting? Pick one and send.</p>
-
-      <div class="card sos-card">
-        <h3>☕ Unscheduled Break</h3>
-        <div class="grid">
-          <div><label for="br-dur">Duration (min)</label>
-            <select id="br-dur"><option>5</option><option selected>10</option><option>15</option><option>30</option><option value="custom">Custom…</option></select></div>
-          <div id="br-custom-w" class="hidden"><label for="br-custom">Custom minutes</label><input id="br-custom" type="number" min="1" value="20"></div>
-          <div><label>Expected return</label><div class="return" id="br-return">–</div></div>
-          <div class="full"><label for="br-note">Note (optional)</label><input id="br-note" placeholder="e.g. Refreshments available"></div>
-        </div>
-        <div class="row" style="margin-top:12px"><button class="btn danger" id="br-go">Generate break notice</button></div>
-      </div>
-
-      <div class="card sos-card">
-        <h3>🛠️ Technical Issues</h3>
-        <div class="chips" id="te-chips" role="group" aria-label="Issue type">
-          <button class="chip" aria-pressed="true">Audio</button><button class="chip" aria-pressed="false">Screen Share</button>
-          <button class="chip" aria-pressed="false">Network</button><button class="chip" aria-pressed="false">Breakout Rooms</button>
-        </div>
-        <div class="grid" style="margin-top:12px">
-          <div><label for="te-min">Expected pause (min)</label><input id="te-min" type="number" min="1" value="5"></div>
-          <div class="full"><label for="te-note">Details / workaround</label><textarea id="te-note" placeholder="e.g. Please mute and stay connected; use chat for questions."></textarea></div>
-        </div>
-        <div class="row" style="margin-top:12px"><button class="btn danger" id="te-go">Generate tech issue notice</button></div>
-      </div>
-
-      <div class="card">
-        <h3>🔀 Agenda Re-order / Item Skipped</h3>
-        <div class="grid">
-          <div><label for="ro-type">Change</label><select id="ro-type"><option value="reorder">Agenda re-ordered</option><option value="skip">Item skipped / deferred</option></select></div>
-          <div id="ro-item-w" class="hidden"><label for="ro-item">Skipped item</label><select id="ro-item"></select></div>
-          <div class="full"><label for="ro-note">Details</label><textarea id="ro-note" placeholder="Reason for the change"></textarea></div>
-        </div>
-        <p class="hint">Re-order items in the Agenda tab first; the notice lists the current order of remaining items.</p>
-        <div class="row" style="margin-top:12px"><button class="btn warn" id="ro-go">Generate agenda change notice</button></div>
-      </div>
-
-      <div class="card">
-        <h3>🏁 Early Adjournment</h3>
-        <div class="grid">
-          <div class="full"><label for="ad-reason">Reason</label><input id="ad-reason" placeholder="All agenda items covered / time constraints"></div>
-          <div class="full"><label for="ad-next">Next steps (one per line)</label><textarea id="ad-next"></textarea></div>
-          <div class="full"><label for="ad-def">Deferred items (one per line)</label><textarea id="ad-def" placeholder="Defaults to remaining pending items"></textarea></div>
-        </div>
-        <div class="row" style="margin-top:12px"><button class="btn warn" id="ad-go">Generate adjournment notice</button></div>
-      </div>
-    </section>
-
-    <!-- Section 4 -->
-    <section class="view" id="schedule">
-      <h2>4. Scheduling &amp; Logistics</h2>
-      <p class="sub">Pre- and post-meeting communications. The preview updates as you type.</p>
-      <div class="card">
-        <label for="sc-type">Email type</label>
-        <select id="sc-type">
-          <option value="invite">New Meeting Invitation</option>
-          <option value="resched">Reschedule / Date Change</option>
-          <option value="cancel">Cancellation Notice</option>
-          <option value="venue">Venue / Link Update</option>
-          <option value="remind">Reminder / Call for Agenda Items</option>
-        </select>
-      </div>
-      <div class="card">
-        <div class="grid" id="sc-fields">
-          <div data-for="invite resched cancel venue remind"><label for="sc-title">Meeting title</label><input id="sc-title" placeholder="Defaults to saved title"></div>
-          <div data-for="invite remind venue"><label for="sc-date">Date</label><input id="sc-date" type="date"></div>
-          <div data-for="invite remind venue"><label for="sc-time">Time</label><input id="sc-time" type="time"></div>
-          <div data-for="invite"><label for="sc-venue">Venue / platform link</label><input id="sc-venue" placeholder="Room 4B or https://teams..."></div>
-          <div data-for="invite" class="full"><label for="sc-agenda">Agenda overview</label><textarea id="sc-agenda" placeholder="Blank = use saved agenda; one item per line"></textarea></div>
-          <div data-for="invite" class="full"><label for="sc-actions">Action items required beforehand</label><textarea id="sc-actions" placeholder="One per line"></textarea></div>
-
-          <div data-for="resched cancel"><label for="sc-od">Previous date</label><input id="sc-od" type="date"></div>
-          <div data-for="resched cancel"><label for="sc-ot">Previous time</label><input id="sc-ot" type="time"></div>
-          <div data-for="resched"><label for="sc-nd">New date</label><input id="sc-nd" type="date"></div>
-          <div data-for="resched"><label for="sc-nt">New time</label><input id="sc-nt" type="time"></div>
-          <div data-for="resched cancel" class="full"><label for="sc-reason">Reason</label><textarea id="sc-reason"></textarea></div>
-          <div data-for="cancel"><label for="sc-ri">Intend to reschedule?</label><select id="sc-ri"><option>Yes</option><option>No</option></select></div>
-
-          <div data-for="venue"><label for="sc-newv">New link / room</label><input id="sc-newv" placeholder="https://zoom.us/... or Room 12"></div>
-          <div data-for="venue"><label for="sc-oldv">Previous link / room (optional)</label><input id="sc-oldv"></div>
-
-          <div data-for="remind"><label for="sc-dead">Agenda item deadline</label><input id="sc-dead" type="datetime-local"></div>
-          <div data-for="remind" class="full"><label for="sc-rn">Additional notes</label><textarea id="sc-rn"></textarea></div>
-        </div>
-      </div>
-    </section>
-
-  <section class="view" id="preview">
-    <h2>5. Email Preview &amp; Dispatch</h2>
-    <p class="sub">The latest generated email appears here. Edit anything before sending.</p>
+  <!-- SETUP -->
+  <section class="page" id="page-setup">
+    <h2>Setup</h2>
+    <p class="sub">Each meeting type keeps its own recipients and agenda. Everything saves as you type.</p>
     <div class="card">
-      <div class="pv-row"><label for="p-to">To</label><input id="p-to"></div>
-      <div class="pv-row"><label for="p-cc">CC</label><input id="p-cc"></div>
-      <div class="pv-row"><label for="p-subj">Subject</label><input id="p-subj"></div>
-      <label for="p-body">Body</label>
-      <textarea id="p-body" class="pv-body" placeholder="Generate an email from any section…"></textarea>
-      <p class="hint" id="p-warn"></p>
-      <div class="row" style="margin-top:8px">
-        <button class="btn sec sm" id="c-subj">Copy Subject</button>
-        <button class="btn sec sm" id="c-body">Copy Body</button>
-        <button class="btn sec sm" id="c-all">Copy All</button>
-        <button class="btn" id="c-mail">Open in Mail Client</button>
+      <div class="row" style="justify-content:space-between;margin-bottom:10px"><h3 style="margin:0">Meeting</h3>
+        <div class="row"><button class="btn sec sm" data-act="m-new">＋ New meeting</button><button class="btn sec sm" data-act="m-dup">Duplicate</button><button class="btn sec sm" data-act="m-del">Delete</button></div></div>
+      <div class="grid">
+        <div><label for="m-name">Meeting name</label><input id="m-name" data-m="name"></div>
+        <div><label for="m-chair">Chairperson</label><input id="m-chair" data-m="chair"></div>
+        <div><label for="m-to">To (default recipients)</label><input id="m-to" data-m="to" placeholder="a@x.com, b@x.com"></div>
+        <div><label for="m-cc">CC</label><input id="m-cc" data-m="cc"></div>
       </div>
     </div>
+    <div class="card">
+      <h3>Agenda <span class="hint" id="ag-total"></span></h3>
+      <div class="grid" style="grid-template-columns:minmax(160px,3fr) minmax(120px,2fr) 90px auto;align-items:end;margin-bottom:12px">
+        <div><label for="new-title">New item</label><input id="new-title" placeholder="Type a title and press Enter"></div>
+        <div><label for="new-speaker">Presenter</label><input id="new-speaker"></div>
+        <div><label for="new-dur">Minutes</label><input id="new-dur" type="number" min="0" value="10"></div>
+        <button class="btn" data-act="add-item">Add</button>
+      </div>
+      <details style="margin-bottom:12px"><summary style="cursor:pointer;color:var(--brand);font-size:13px">Paste a whole agenda at once</summary>
+        <textarea id="paste" style="margin-top:8px" placeholder="One item per line. Optional: Title | Presenter | Minutes"></textarea>
+        <button class="btn sec sm" style="margin-top:6px" data-act="paste-add">Add these items</button></details>
+      <div id="agenda-editor"></div>
+      <p class="hint">Open “More” on an item to set its own recipients, notes, or a custom “next item starting” email. Use <b>Preview</b> to see exactly what will be sent.</p>
+    </div>
   </section>
-  </main>
 
+  <!-- TEMPLATES -->
+  <section class="page" id="page-templates">
+    <h2>Email wording</h2>
+    <p class="sub">Edit the subject and body of any email, rename buttons, or add your own situations.</p>
+    <div class="card">
+      <h3>How placeholders work</h3>
+      <p class="hint" style="margin-top:0">Put a name in curly braces and it is filled in automatically, or asked for when you click the button.</p>
+      <ul class="hint" style="margin:6px 0 0;padding-left:20px">
+        <li><b>Filled automatically:</b> <code>{meeting}</code> <code>{chair}</code> <code>{now}</code> <code>{today}</code> <code>{item}</code> <code>{item_speaker}</code> <code>{item_duration}</code> <code>{item_notes}</code> <code>{prev_item}</code> <code>{next_item}</code> <code>{remaining}</code> <code>{return_time}</code></li>
+        <li><b>Asked when sending:</b> anything else, e.g. <code>{reason}</code>. It becomes a box, labelled from the name.</li>
+        <li><b>Choices:</b> <code>{minutes:5|10|15|30}</code> gives one-tap buttons plus “Other…”.</li>
+        <li><b>Optional:</b> <code>{reason?}</code> — a line like “Reason: {reason?}” disappears if left empty.</li>
+        <li>Names ending in <code>date</code>, <code>time</code> or <code>deadline</code> get date/time pickers. <code>{return_time}</code> uses <code>{minutes}</code>.</li>
+      </ul>
+    </div>
+    <div class="row" style="margin-bottom:12px"><button class="btn" data-act="t-new">＋ New email type</button><button class="btn sec" data-act="t-restore">Restore built-in wording</button></div>
+    <div id="tpl-list"></div>
+  </section>
+</main>
+
+<dialog id="dlg" aria-labelledby="e-title">
+  <div class="dlg-head"><h3 id="e-title"></h3><button class="btn sec sm" id="e-close" aria-label="Close">✕ Close</button></div>
+  <div class="fields hidden" id="e-fields"></div>
+  <div class="pv-row"><label for="e-to">To</label><input id="e-to"></div>
+  <div class="pv-row"><label for="e-cc">CC</label><input id="e-cc"></div>
+  <div class="pv-row"><label for="e-subj">Subject</label><input id="e-subj"></div>
+  <label for="e-body">Body</label>
+  <textarea id="e-body" class="pv-body"></textarea>
+  <p class="hint" id="e-warn"></p>
+  <div class="dlg-actions row">
+    <button class="btn" id="e-mail">Open in Mail Client</button>
+    <button class="btn sec" id="e-all">Copy All</button>
+    <button class="btn sec" id="e-subjcopy">Copy Subject</button>
+    <button class="btn sec" id="e-bodycopy">Copy Body</button>
+    <a href="#templates" id="e-edit" class="hint" style="margin-left:auto">✎ Edit this wording</a>
+  </div>
+</dialog>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
-const KEY = 'meetingMailer.v1';
+const KEY = 'meetingMailer.v2';
 const uid = () => Math.random().toString(36).slice(2, 10);
-
-let state = { settings:{title:'',chair:'',to:'',cc:''}, agenda:[], ui:{tab:'setup'}, draft:null };
-try {
-  const s = JSON.parse(localStorage.getItem(KEY));
-  if (s) state = { ...state, ...s, settings:{ ...state.settings, ...s.settings }, ui:{ ...state.ui, ...s.ui } };
-} catch {}
-let editingId = null;
-let techType = 'Audio';
-
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
-const toast = msg => { const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toast.h); toast.h=setTimeout(()=>t.classList.remove('show'),1800); };
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const clockFmt = d => d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
-const dateFmt = (d, t) => {
-  if (!d) return '[date TBD]';
-  const dt = new Date(d + 'T' + (t || '00:00'));
-  if (isNaN(dt)) return d;
-  const ds = dt.toLocaleDateString([], {weekday:'long', year:'numeric', month:'long', day:'numeric'});
-  return t ? `${ds} at ${clockFmt(dt)}` : ds;
-};
-const lines = s => (s||'').split('\n').map(x=>x.trim()).filter(Boolean);
-const bullets = (arr, empty) => arr.length ? arr.map(x=>'  • '+x).join('\n') : '  • '+empty;
-const join = parts => parts.filter(p => p !== null && p !== undefined && p !== false).join('\n');
+const clock = d => d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+const humanize = k => { const s = k.replace(/_/g, ' '); return s.charAt(0).toUpperCase() + s.slice(1); };
 
-/* ---------- Navigation ---------- */
-const gotoPreview = () => $('preview').scrollIntoView({behavior:'smooth', block:'start'});
+/* ---------- Default email wording ---------- */
+const SIG = '\nBest regards,\n{chair}';
+const defaultTemplates = () => [
+  { id:'start', role:'start', cat:'live', icon:'▶️', name:'Next item starting', urgent:false,
+    subject:'[{meeting}] Now starting: {item}',
+    body:`Hello all,
 
-/* ---------- Settings ---------- */
-const S = {title:'s-title', chair:'s-chair', to:'s-to', cc:'s-cc'};
-for (const [k,id] of Object.entries(S)) {
-  $(id).value = state.settings[k] || '';
-  $(id).addEventListener('input', () => {
-    state.settings[k] = $(id).value; save();
-    if (state.draft?.live) generateSchedule();
-  });
+Update from {meeting}:
+  • Concluded: {prev_item?}
+  • Now starting: {item}
+  • Presenter: {item_speaker?}
+  • Allotted time: {item_duration?}
+  • Summary: {item_notes?}
+  • Started at: {now}
+  • Up next: {next_item?}
+${SIG}` },
+  { id:'status', role:'status', cat:'live', icon:'📣', name:'Status update', urgent:false,
+    subject:'[{meeting}] Status update: {item}',
+    body:`Hello all,
+
+Quick progress update from {meeting}:
+  • Current item: {item}
+  • Progress: {progress:Just started|About 25% done|About halfway|About 75% done|Wrapping up}
+  • Timing: {timing:On schedule|Running slightly behind|Running behind schedule|Running ahead of schedule}
+  • Time now: {now}
+  • Up next: {next_item?}
+
+Key points so far:
+{points?}
+${SIG}` },
+  { id:'break', cat:'live', icon:'☕', name:'Unscheduled break', urgent:true,
+    subject:'[{meeting}] {minutes:5|10|15|30}-minute break – resuming at {return_time}',
+    body:`Hello all,
+
+We are taking an unscheduled break.
+  • Break started: {now}
+  • Expected return: {return_time}
+  • Resuming with: {item?}
+  • Note: {note?}
+
+Please rejoin promptly at {return_time}.
+${SIG}` },
+  { id:'tech', cat:'live', icon:'🛠️', name:'Technical issue', urgent:true,
+    subject:'[{meeting}] Paused – {issue:Audio|Screen Share|Network|Breakout Rooms} issue (resuming about {return_time})',
+    body:`Hello all,
+
+We are experiencing a technical issue and the meeting is temporarily paused.
+  • Issue: {issue}
+  • Paused at: {now}
+  • Estimated resume: {return_time} (about {minutes:5|10|15|30} min)
+  • Workaround: {details?}
+
+Please stay connected where possible. We will confirm as soon as we resume.
+${SIG}` },
+  { id:'skip', role:'skip', cat:'live', icon:'⏭️', name:'Item skipped', urgent:false,
+    subject:'[{meeting}] Agenda update – "{skipped_item}" skipped',
+    body:`Hello all,
+
+Please note the following agenda change:
+  • Skipped / deferred: {skipped_item}
+  • Reason: {reason?}
+
+Remaining agenda:
+{remaining?}
+${SIG}` },
+  { id:'reorder', cat:'live', icon:'🔀', name:'Agenda re-ordered', urgent:false,
+    subject:'[{meeting}] Agenda re-ordered',
+    body:`Hello all,
+
+The agenda order has been updated. {details?}
+
+Current order of remaining items:
+{remaining?}
+${SIG}` },
+  { id:'adjourn', cat:'live', icon:'🏁', name:'Early adjournment', urgent:false,
+    subject:'[{meeting}] Early adjournment – next steps',
+    body:`Hello all,
+
+{meeting} is being adjourned early. {reason?}
+Thank you for your time and contributions.
+
+Next steps:
+{next_steps?}
+
+Deferred items:
+{deferred?}
+${SIG}` },
+  { id:'invite', cat:'schedule', icon:'📨', name:'New invitation', urgent:false,
+    subject:'Invitation: {meeting} – {meeting_date}',
+    body:`Hello all,
+
+You are invited to {meeting}.
+  • Date: {meeting_date}
+  • Time: {meeting_time}
+  • Venue / link: {venue}
+  • Chair: {chair}
+
+Agenda overview:
+{agenda_overview?}
+
+Please complete before the meeting:
+{actions?}
+
+Kindly confirm your attendance.
+${SIG}` },
+  { id:'resched', cat:'schedule', icon:'🔄', name:'Reschedule', urgent:false,
+    subject:'Rescheduled: {meeting} – now {new_date}',
+    body:`Hello all,
+
+{meeting} has been rescheduled.
+  • Previous: {old_date} at {old_time}
+  • New: {new_date} at {new_time}
+  • Reason: {reason?}
+
+Please update your calendars. Apologies for any inconvenience.
+${SIG}` },
+  { id:'cancel', cat:'schedule', icon:'🚫', name:'Cancellation', urgent:false,
+    subject:'Cancelled: {meeting} – {meeting_date}',
+    body:`Hello all,
+
+{meeting} scheduled for {meeting_date} has been cancelled.
+  • Time: {meeting_time?}
+  • Reason: {reason?}
+  • Will be rescheduled: {reschedule:Yes|No}
+
+If it is rescheduled, a new invitation will follow. Thank you for your understanding.
+${SIG}` },
+  { id:'venue', cat:'schedule', icon:'📍', name:'Venue / link update', urgent:false,
+    subject:'Venue/link update: {meeting}',
+    body:`Hello all,
+
+The venue / link for {meeting} has changed.
+  • New location / link: {new_location}
+  • Previous: {old_location?}
+  • Date: {meeting_date?}
+  • Time: {meeting_time?}
+
+Please use the updated details.
+${SIG}` },
+  { id:'remind', cat:'schedule', icon:'⏰', name:'Reminder / agenda call', urgent:false,
+    subject:'Reminder & call for agenda items: {meeting}',
+    body:`Hello all,
+
+This is a reminder about {meeting}.
+  • Date: {meeting_date?}
+  • Time: {meeting_time?}
+  • Agenda item submission deadline: {submission_deadline}
+  • Send items to: {chair}
+
+Current agenda:
+{agenda_overview?}
+
+Please submit your topics by the deadline.
+${SIG}` }
+];
+
+/* ---------- State ---------- */
+const blankItem = (o = {}) => ({ id:uid(), title:'', speaker:'', duration:10, notes:'', to:'', subject:'', body:'', status:'pending', startedAt:null, ...o });
+const newMeeting = name => ({ id:uid(), name, chair:'', to:'', cc:'', agenda:[] });
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && s.meetings && s.meetings.length) {
+      if (!s.templates || !s.templates.length) s.templates = defaultTemplates();
+      s.meetings.forEach(m => m.agenda = (m.agenda || []).map(i => blankItem(i)));
+      return s;
+    }
+  } catch {}
+  const m = newMeeting('My Meeting');
+  try {
+    const o = JSON.parse(localStorage.getItem('meetingMailer.v1'));
+    if (o) {
+      const st = o.settings || {};
+      Object.assign(m, { name:st.title || m.name, chair:st.chair || '', to:st.to || '', cc:st.cc || '' });
+      m.agenda = (o.agenda || []).map(i => blankItem({ title:i.title, speaker:i.speaker, duration:i.duration, notes:i.notes, to:i.to, status:i.status === 'active' ? 'pending' : (i.status || 'pending') }));
+    }
+  } catch {}
+  return { meetings:[m], current:m.id, templates:defaultTemplates(), undo:null };
 }
-const mtitle = () => state.settings.title.trim() || 'Meeting';
-const chair = () => state.settings.chair.trim() || '[Chairperson]';
-const sig = () => `Best regards,\n${chair()}`;
+let state = load();
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
+const M = () => state.meetings.find(m => m.id === state.current) || state.meetings[0];
+const toast = msg => { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 1800); };
 
-/* ---------- Agenda ---------- */
-const itemLine = it => `${it.title}${it.speaker ? ' ('+it.speaker+')' : ''}${it.duration ? ' – '+it.duration+' min' : ''}`;
-const activeIdx = () => state.agenda.findIndex(i => i.status === 'active');
-const nextIdx = () => { const a = activeIdx(); return state.agenda.findIndex((i, n) => n > a && i.status === 'pending'); };
-const remaining = () => state.agenda.filter(i => i.status === 'pending' || i.status === 'active');
-
-function renderAgenda() {
-  const ul = $('agenda');
-  const total = state.agenda.reduce((s,i)=>s+(+i.duration||0),0);
-  $('ag-total').textContent = state.agenda.length ? `· ${state.agenda.length} items · ${total} min` : '';
-  if (!state.agenda.length) ul.innerHTML = '<li class="empty" style="display:block">No agenda items yet. Add one above.</li>';
-  else ul.innerHTML = state.agenda.map((it, n) => `
-    <li class="${it.status}" data-id="${it.id}">
-      <span class="num">${n+1}</span>
-      <div>
-        <div class="title">${esc(it.title)} <span class="badge b-${it.status}">${it.status}</span></div>
-        <div class="meta">${esc(it.speaker||'—')} · ${esc(it.duration||0)} min${it.to ? ' · To: '+esc(it.to) : ''}</div>
-        ${it.notes ? `<div class="meta">${esc(it.notes)}</div>` : ''}
-      </div>
-      <div class="row">
-        <button class="btn sec sm" data-act="up" ${n===0?'disabled':''} aria-label="Move up">↑</button>
-        <button class="btn sec sm" data-act="down" ${n===state.agenda.length-1?'disabled':''} aria-label="Move down">↓</button>
-        <button class="btn sec sm" data-act="edit">Edit</button>
-        <button class="btn sec sm" data-act="del">Delete</button>
-      </div>
-    </li>`).join('');
-  renderLive(); renderSkipSelect();
+/* ---------- Agenda helpers ---------- */
+const active = () => M().agenda.find(i => i.status === 'active');
+const itemLine = i => `${i.title}${i.speaker ? ' ('+i.speaker+')' : ''}${i.duration ? ' – '+i.duration+' min' : ''}`;
+function nextAfter(item, any) {
+  const a = M().agenda, ok = i => any ? i.status !== 'done' && i.status !== 'skipped' : i.status === 'pending';
+  if (item) { const idx = a.findIndex(i => i.id === item.id); const after = a.slice(idx + 1).find(ok); if (after) return after; if (item.status === 'active' || any) return null; }
+  return a.find(i => i.status === 'pending' && (!item || i.id !== item.id)) || null;
 }
-$('agenda').addEventListener('click', e => {
-  const btn = e.target.closest('button[data-act]'); if (!btn) return;
-  const id = btn.closest('li').dataset.id, n = state.agenda.findIndex(i=>i.id===id), a = btn.dataset.act;
-  if (a==='up' && n>0) [state.agenda[n-1], state.agenda[n]] = [state.agenda[n], state.agenda[n-1]];
-  if (a==='down' && n<state.agenda.length-1) [state.agenda[n+1], state.agenda[n]] = [state.agenda[n], state.agenda[n+1]];
-  if (a==='del') { if (!confirm('Delete this agenda item?')) return; state.agenda.splice(n,1); if (editingId===id) resetForm(); }
-  if (a==='edit') {
-    const it = state.agenda[n]; editingId = id;
-    $('a-title').value=it.title; $('a-speaker').value=it.speaker; $('a-dur').value=it.duration; $('a-to').value=it.to; $('a-notes').value=it.notes;
-    $('a-save').textContent='Update item'; $('a-cancel').classList.remove('hidden'); $('ag-form-title').textContent='Edit agenda item';
-    $('a-title').focus();
+const remainingItems = () => M().agenda.filter(i => i.status === 'pending' || i.status === 'active');
+const snapshot = () => { state.undo = { meeting:M().id, snap:M().agenda.map(i => ({ id:i.id, status:i.status, startedAt:i.startedAt })) }; };
+
+/* ---------- Template engine ---------- */
+const PH = /\{(\w+)(\?)?(?::([^}]*))?\}/g;
+const AUTO = new Set(['meeting','chair','now','today','item','item_speaker','item_duration','item_notes','prev_item','next_item','remaining','return_time']);
+const TEXTAREA = /(steps|deferred|points|actions|details|notes|overview)$/;
+const BULLET = /(steps|deferred|points|actions|overview)$/;
+
+function parseFields(text) {
+  const map = new Map();
+  for (const m of text.matchAll(PH)) {
+    let [, key, q, opts] = m;
+    if (key === 'return_time') { key = 'minutes'; q = ''; opts = undefined; }
+    else if (AUTO.has(key)) continue;
+    const f = map.get(key) || { key, optional:true, options:null };
+    if (!q) f.optional = false;
+    if (opts && !f.options) f.options = opts.split('|').map(s => s.trim()).filter(Boolean);
+    map.set(key, f);
   }
-  save(); renderAgenda();
-});
-function resetForm() {
-  editingId = null;
-  ['a-title','a-speaker','a-to','a-notes'].forEach(i=>$(i).value=''); $('a-dur').value=10;
-  $('a-save').textContent='Add item'; $('a-cancel').classList.add('hidden'); $('ag-form-title').textContent='Add agenda item';
+  const out = [...map.values()];
+  out.forEach(f => {
+    if (f.key === 'minutes' && !f.options) f.options = ['5','10','15','30'];
+    f.kind = f.key === 'skipped_item' ? 'select' : f.options ? 'chips'
+      : /deadline$/.test(f.key) ? 'datetime' : /date$/.test(f.key) ? 'date' : /time$/.test(f.key) ? 'time'
+      : TEXTAREA.test(f.key) ? 'textarea' : 'text';
+  });
+  return out;
 }
-$('a-cancel').onclick = resetForm;
-$('a-save').onclick = () => {
-  const title = $('a-title').value.trim();
-  if (!title) { toast('Enter an item title'); $('a-title').focus(); return; }
-  const data = { title, speaker:$('a-speaker').value.trim(), duration:Math.max(0,+$('a-dur').value||0), to:$('a-to').value.trim(), notes:$('a-notes').value.trim() };
-  if (editingId) Object.assign(state.agenda.find(i=>i.id===editingId), data);
-  else state.agenda.push({ id:uid(), status:'pending', ...data });
-  resetForm(); save(); renderAgenda();
-};
-$('ag-reset').onclick = () => { state.agenda.forEach(i=>i.status='pending'); save(); renderAgenda(); toast('Progress reset'); };
-$('ag-clear').onclick = () => { if (confirm('Remove all agenda items?')) { state.agenda=[]; resetForm(); save(); renderAgenda(); } };
+function defaultFor(f, ctx) {
+  const k = f.key;
+  if (k === 'minutes') return f.options.includes('10') ? '10' : f.options[0];
+  if (k === 'skipped_item') { const c = nextAfter(ctx.item, true) || remainingItems()[0]; return c ? c.title : ''; }
+  if (f.options) return f.options[0];
+  if (k === 'deferred') return remainingItems().map(i => i.title).join('\n');
+  if (k.endsWith('overview')) return M().agenda.map(itemLine).join('\n');
+  return '';
+}
+const dLong = s => { const [y,m,d] = s.split('-').map(Number); const dt = new Date(y, m-1, d); return isNaN(dt) ? s : dt.toLocaleDateString([], {weekday:'long', year:'numeric', month:'long', day:'numeric'}); };
+const t12 = s => { const [h,mi] = s.split(':').map(Number); const dt = new Date(2000,0,1,h,mi); return isNaN(dt) ? s : clock(dt); };
+const dtl = s => { const dt = new Date(s); return isNaN(dt) ? s : dt.toLocaleString([], {dateStyle:'full', timeStyle:'short'}); };
 
-/* ---------- Draft / preview ---------- */
-const recipients = item => ({ to: (item && item.to) ? item.to : state.settings.to, cc: state.settings.cc });
-function setDraft(d, live) {
-  state.draft = { to:d.to||'', cc:d.cc||'', subject:d.subject, body:d.body, live:!!live };
-  save(); renderPreview();
-  if (!live) gotoPreview();
+function autoVars(ctx, vals) {
+  const m = M(), now = new Date(), mins = parseFloat(vals.minutes);
+  const skip = (vals.skipped_item || '').trim();
+  return {
+    meeting: m.name || 'Meeting', chair: m.chair || '', now: clock(now),
+    today: now.toLocaleDateString([], {weekday:'long', year:'numeric', month:'long', day:'numeric'}),
+    item: ctx.item ? ctx.item.title : '', item_speaker: ctx.item ? ctx.item.speaker : '',
+    item_duration: ctx.item && ctx.item.duration ? ctx.item.duration + ' min' : '', item_notes: ctx.item ? ctx.item.notes : '',
+    prev_item: ctx.prev ? ctx.prev.title : '', next_item: ctx.next ? ctx.next.title : '',
+    remaining: remainingItems().filter(i => !skip || i.title !== skip).map(itemLine).join('\n'),
+    return_time: mins > 0 ? clock(new Date(now.getTime() + mins * 60000)) : ''
+  };
 }
-function renderPreview() {
-  const d = state.draft || {to:'',cc:'',subject:'',body:''};
-  $('p-to').value = d.to; $('p-cc').value = d.cc; $('p-subj').value = d.subject; $('p-body').value = d.body;
+function renderText(text, vals, ctx) {
+  const auto = autoVars(ctx, vals);
+  const val = key => {
+    const v = key in auto ? auto[key] : (vals[key] ?? '');
+    if (!v || key in auto) return v;
+    return /deadline$/.test(key) ? dtl(v) : /date$/.test(key) ? dLong(v) : /time$/.test(key) ? t12(v) : v;
+  };
+  const out = [];
+  for (const line of text.split('\n')) {
+    const solo = line.trim().match(/^\{(\w+)(\?)?(?::[^}]*)?\}$/);
+    if (solo && (solo[1] === 'remaining' || BULLET.test(solo[1]))) {
+      const ls = val(solo[1]).split('\n').map(s => s.trim().replace(/^[•*-]\s*/, '')).filter(Boolean);
+      if (ls.length) ls.forEach(l => out.push({ t:'  • ' + l }));
+      else out.push(solo[2] ? { drop:true } : { t:'[' + humanize(solo[1]) + ']' });
+      continue;
+    }
+    let emptyOpt = false;
+    const t = line.replace(PH, (_, key, q) => {
+      const v = val(key); if (v) return v;
+      if (q) { emptyOpt = true; return ''; }
+      return '[' + humanize(key === 'return_time' ? 'minutes' : key) + ']';
+    });
+    if (emptyOpt && (/^[\s•-]*$/.test(t) || /:\s*$/.test(t))) { out.push({ drop:true }); continue; }
+    out.push({ t: emptyOpt ? t.replace(/\s+$/, '') : t });
+  }
+  out.forEach((o, i) => { if (!o.drop && /:\s*$/.test(o.t) && out[i+1] && out[i+1].drop) o.drop = true; });
+  return out.filter(o => !o.drop).map(o => o.t).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/* ---------- Email dialog ---------- */
+let dlg = null;
+function openEmail(tpl, opts = {}) {
+  if (typeof tpl === 'string') tpl = state.templates.find(t => t.id === tpl || t.role === tpl);
+  if (!tpl) return;
+  const m = M();
+  const item = opts.item !== undefined ? opts.item : active();
+  const ctx = { item, prev: opts.prev || null, next: nextAfter(item, !!opts.preview) };
+  const custom = tpl.role === 'start' && item;
+  const subjText = custom && item.subject.trim() ? item.subject : tpl.subject;
+  const bodyText = custom && item.body.trim() ? item.body : tpl.body;
+  const fields = parseFields(subjText + '\n' + bodyText);
+  const vals = {};
+  fields.forEach(f => vals[f.key] = defaultFor(f, ctx));
+  Object.assign(vals, opts.vals || {});
+  dlg = { tpl, ctx, subjText, bodyText, fields, vals };
+  $('e-title').textContent = `${tpl.icon || '✉️'} ${tpl.name}`;
+  $('e-to').value = (custom && item.to) ? item.to : m.to;
+  $('e-cc').value = m.cc;
+  const fe = $('e-fields');
+  fe.classList.toggle('hidden', !fields.length);
+  fe.innerHTML = fields.map(fieldHTML).join('');
+  regen();
+  const d = $('dlg'); if (!d.open) d.showModal();
+  const first = fe.querySelector('.chip[aria-pressed=true], input, select, textarea');
+  if (first && !fields.length) $('e-mail').focus(); else if (first) first.focus();
+}
+function fieldHTML(f) {
+  const k = f.key, cur = dlg.vals[k] ?? '', label = humanize(k) + (f.optional ? ' (optional)' : '');
+  const urg = dlg.tpl.urgent ? ' urg' : '';
+  let inner;
+  if (f.kind === 'chips') {
+    const inOpts = f.options.includes(cur), isMin = k === 'minutes';
+    inner = `<div class="chips">${f.options.map(o => `<button type="button" class="chip${urg}" data-k="${k}" data-v="${esc(o)}" aria-pressed="${cur === o}">${esc(o)}${isMin ? ' min' : ''}</button>`).join('')}
+      <button type="button" class="chip${urg}" data-k="${k}" data-other="1" aria-pressed="${!inOpts}">Other…</button></div>
+      <input class="other${inOpts ? ' hidden' : ''}" data-fk="${k}" type="${isMin ? 'number' : 'text'}" min="1" value="${inOpts ? '' : esc(cur)}" placeholder="${isMin ? 'Minutes' : 'Type here'}">`;
+  } else if (f.kind === 'select') {
+    const items = M().agenda.filter(i => i.status !== 'done');
+    inner = `<select data-fk="${k}">${items.map(i => `<option${i.title === cur ? ' selected' : ''}>${esc(i.title)}</option>`).join('')}</select>`;
+  } else if (f.kind === 'textarea') {
+    inner = `<textarea data-fk="${k}" rows="3" placeholder="One per line">${esc(cur)}</textarea>`;
+  } else {
+    const type = { date:'date', time:'time', datetime:'datetime-local' }[f.kind] || 'text';
+    inner = `<input data-fk="${k}" type="${type}" value="${esc(cur)}">`;
+  }
+  return `<div><label>${esc(label)}</label>${inner}</div>`;
+}
+function regen() {
+  if (!dlg) return;
+  $('e-subj').value = renderText(dlg.subjText, dlg.vals, dlg.ctx).replace(/\s*\n\s*/g, ' ');
+  $('e-body').value = renderText(dlg.bodyText, dlg.vals, dlg.ctx);
   updateWarn();
 }
-['p-to','p-cc','p-subj','p-body'].forEach(id => $(id).addEventListener('input', () => {
-  state.draft = { to:$('p-to').value, cc:$('p-cc').value, subject:$('p-subj').value, body:$('p-body').value, live:false };
-  save(); updateWarn();
+$('e-fields').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  const k = c.dataset.k, wrap = c.closest('div[class=chips]') || c.parentElement, other = wrap.parentElement.querySelector('.other');
+  wrap.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', String(x === c)));
+  if (c.dataset.other) { other.classList.remove('hidden'); other.focus(); dlg.vals[k] = other.value; }
+  else { other.classList.add('hidden'); dlg.vals[k] = c.dataset.v; }
+  regen();
+});
+['input','change'].forEach(ev => $('e-fields').addEventListener(ev, e => {
+  const k = e.target.dataset.fk; if (!k) return;
+  dlg.vals[k] = e.target.value; regen();
 }));
 const mailto = () => {
-  const d = state.draft || {};
-  const list = s => (s||'').split(/[;,]/).map(x=>x.trim()).filter(Boolean).map(encodeURIComponent).join(',');
+  const list = s => (s || '').split(/[;,]/).map(x => x.trim()).filter(Boolean).map(encodeURIComponent).join(',');
   const q = [];
-  if (list(d.cc)) q.push('cc='+list(d.cc));
-  q.push('subject='+encodeURIComponent(d.subject||''), 'body='+encodeURIComponent((d.body||'').replace(/\r?\n/g, '\r\n')));
-  return `mailto:${list(d.to)}?${q.join('&')}`;
+  if (list($('e-cc').value)) q.push('cc=' + list($('e-cc').value));
+  q.push('subject=' + encodeURIComponent($('e-subj').value), 'body=' + encodeURIComponent($('e-body').value.replace(/\r?\n/g, '\r\n')));
+  return `mailto:${list($('e-to').value)}?${q.join('&')}`;
 };
-function updateWarn() { $('p-warn').textContent = mailto().length > 1900 ? '⚠ Long email: some mail clients truncate mailto links. Use Copy Body instead.' : ''; }
+const updateWarn = () => { $('e-warn').textContent = mailto().length > 1900 ? '⚠ Long email: some mail clients cut off mailto links. Use Copy Body instead.' : ''; };
+['e-to','e-cc','e-subj','e-body'].forEach(id => $(id).addEventListener('input', updateWarn));
 async function copy(text, label) {
   try { await navigator.clipboard.writeText(text); }
-  catch { const t=document.createElement('textarea'); t.value=text; document.body.appendChild(t); t.select(); try{document.execCommand('copy')}catch{} t.remove(); }
+  catch { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
   toast(label + ' copied');
 }
-const need = () => { if (!state.draft || !(state.draft.subject || state.draft.body)) { toast('Nothing to copy yet'); return false; } return true; };
-$('c-subj').onclick = () => need() && copy(state.draft.subject, 'Subject');
-$('c-body').onclick = () => need() && copy(state.draft.body, 'Body');
-$('c-all').onclick = () => need() && copy(`To: ${state.draft.to}\nCC: ${state.draft.cc}\nSubject: ${state.draft.subject}\n\n${state.draft.body}`, 'Email');
-$('c-mail').onclick = () => { if (need()) window.location.href = mailto(); };
-
-/* ---------- Live tracker ---------- */
-function renderLive() {
-  const a = state.agenda[activeIdx()], n = state.agenda[nextIdx()];
-  const box = it => it ? `<div class="title">${esc(it.title)} <span class="badge b-${it.status}">${it.status}</span></div><div class="meta">${esc(it.speaker||'—')} · ${esc(it.duration||0)} min</div>` : null;
-  $('l-cur').innerHTML = box(a) || '<span class="empty">No item in progress</span>';
-  $('l-next').innerHTML = box(n) || '<span class="empty">No remaining items</span>';
-  $('l-start').disabled = !n;
-  $('l-start').textContent = a ? 'Start Next Item' : 'Start First Item';
-  $('l-progress').disabled = !a;
-  $('l-finish').disabled = !a || !!n;
-}
-$('l-start').onclick = () => {
-  const ai = activeIdx(), ni = nextIdx(); if (ni < 0) return;
-  const prev = state.agenda[ai], next = state.agenda[ni];
-  if (prev) prev.status = 'done';
-  next.status = 'active';
-  const left = state.agenda.filter(i => i.status === 'pending').length;
-  const body = join([
-    'Hello all,', '',
-    prev ? `We have concluded "${prev.title}"${prev.speaker ? ' ('+prev.speaker+')' : ''} and are now moving to the next item.` : `${mtitle()} is now under way.`, '',
-    'NOW STARTING:',
-    `  • Item: ${next.title}`,
-    next.speaker && `  • Presenter: ${next.speaker}`,
-    next.duration && `  • Allotted time: ${next.duration} min`,
-    next.notes && `  • Summary: ${next.notes}`,
-    `  • Started at: ${clockFmt(new Date())}`, '',
-    left ? `Items remaining after this one: ${left}.` : 'This is the final agenda item.', '',
-    sig()
-  ]);
-  setDraft({ ...recipients(next), subject: prev ? `[${mtitle()}] Concluded: ${prev.title} → Now Starting: ${next.title}` : `[${mtitle()}] Now Starting: ${next.title}`, body });
-  save(); renderAgenda();
-};
-$('l-finish').onclick = () => { const a = state.agenda[activeIdx()]; if (a) { a.status='done'; save(); renderAgenda(); toast('Item marked done'); } };
-$('l-progress').onclick = () => {
-  const cur = state.agenda[activeIdx()]; if (!cur) return;
-  const nxt = state.agenda[nextIdx()], pts = lines($('l-note').value);
-  const body = join([
-    'Hello all,', '',
-    `Quick progress update from ${mtitle()}:`, '',
-    `  • Current item: ${cur.title}${cur.speaker ? ' ('+cur.speaker+')' : ''}`,
-    $('l-pct').value && `  • Progress: ${$('l-pct').value}`,
-    `  • Timing: ${$('l-timing').value}`,
-    `  • Time now: ${clockFmt(new Date())}`,
-    `  • Up next: ${nxt ? nxt.title : 'no further items'}`,
-    pts.length && '', pts.length && 'Key points so far:', pts.length && bullets(pts), '',
-    sig()
-  ]);
-  setDraft({ ...recipients(cur), subject:`[${mtitle()}] Status Update – ${cur.title}`, body });
-};
-
-/* ---------- Scramble ---------- */
-const breakMins = () => $('br-dur').value === 'custom' ? Math.max(1, +$('br-custom').value || 1) : +$('br-dur').value;
-const retTime = m => clockFmt(new Date(Date.now() + m*60000));
-function updateBreakReturn() { $('br-return').textContent = retTime(breakMins()); }
-$('br-dur').onchange = () => { $('br-custom-w').classList.toggle('hidden', $('br-dur').value !== 'custom'); updateBreakReturn(); };
-$('br-custom').oninput = updateBreakReturn;
-setInterval(updateBreakReturn, 15000);
-$('br-go').onclick = () => {
-  const m = breakMins(), back = retTime(m), cur = state.agenda[activeIdx()], note = $('br-note').value.trim();
-  $('br-return').textContent = back;
-  const body = join([
-    'Hello all,', '',
-    `We are taking an unscheduled ${m}-minute break.`, '',
-    `  • Break started: ${clockFmt(new Date())}`,
-    `  • Expected return: ${back}`,
-    cur && `  • Resuming with: ${cur.title}`,
-    note && `  • Note: ${note}`, '',
-    `Please rejoin promptly at ${back}.`, '',
-    sig()
-  ]);
-  setDraft({ ...recipients(), subject:`[${mtitle()}] ${m}-Minute Break – Resuming at ${back}`, body });
-};
-$('te-chips').addEventListener('click', e => {
-  const c = e.target.closest('.chip'); if (!c) return;
-  techType = c.textContent;
-  document.querySelectorAll('#te-chips .chip').forEach(x => x.setAttribute('aria-pressed', String(x === c)));
+$('e-subjcopy').onclick = () => copy($('e-subj').value, 'Subject');
+$('e-bodycopy').onclick = () => copy($('e-body').value, 'Body');
+$('e-all').onclick = () => copy(`To: ${$('e-to').value}\nCC: ${$('e-cc').value}\nSubject: ${$('e-subj').value}\n\n${$('e-body').value}`, 'Email');
+$('e-mail').onclick = () => { window.location.href = mailto(); };
+$('e-close').onclick = () => $('dlg').close();
+$('dlg').addEventListener('click', e => { if (e.target === $('dlg')) $('dlg').close(); });
+$('e-edit').addEventListener('click', () => {
+  const id = dlg && dlg.tpl.id; $('dlg').close();
+  setTimeout(() => { const el = $('tpl-' + id); if (el) el.scrollIntoView({ block:'start' }); }, 50);
 });
-$('te-go').onclick = () => {
-  const m = Math.max(1, +$('te-min').value || 5), back = retTime(m), note = $('te-note').value.trim();
-  const body = join([
-    'Hello all,', '',
-    'We are experiencing a technical issue and the meeting is temporarily paused.', '',
-    `  • Issue: ${techType}`,
-    `  • Paused at: ${clockFmt(new Date())}`,
-    `  • Estimated resume: ${back} (~${m} min)`,
-    note && `  • Details: ${note}`, '',
-    'Please stay connected where possible. We will confirm as soon as we resume.', '',
-    sig()
-  ]);
-  setDraft({ ...recipients(), subject:`[${mtitle()}] Paused – ${techType} Issue (Est. Resume ${back})`, body });
-};
-function renderSkipSelect() {
-  const sel = $('ro-item'), prev = sel.value;
-  sel.innerHTML = state.agenda.map(i => `<option value="${i.id}">${esc(i.title)}</option>`).join('');
-  if (prev) sel.value = prev;
-}
-$('ro-type').onchange = () => $('ro-item-w').classList.toggle('hidden', $('ro-type').value !== 'skip');
-$('ro-go').onclick = () => {
-  const note = $('ro-note').value.trim();
-  let subject, body;
-  if ($('ro-type').value === 'skip') {
-    const it = state.agenda.find(i => i.id === $('ro-item').value);
-    if (!it) { toast('Select an item to skip'); return; }
-    if (it.status !== 'done') it.status = 'skipped';
-    save(); renderAgenda();
-    subject = `[${mtitle()}] Agenda Update – "${it.title}" Skipped`;
-    body = join(['Hello all,', '', 'Please note the following agenda change:', '',
-      `  • Skipped / deferred: ${it.title}`, note && `  • Reason: ${note}`, '',
-      'Remaining agenda:', bullets(remaining().map(itemLine), 'None'), '', sig()]);
-  } else {
-    subject = `[${mtitle()}] Agenda Re-ordered`;
-    body = join(['Hello all,', '', 'The agenda order has been updated.', '',
-      note && `Details: ${note}`, note && '',
-      'Current order of remaining items:',
-      remaining().length ? remaining().map((i,n) => `  ${n+1}. ${itemLine(i)}`).join('\n') : '  (none)', '', sig()]);
-  }
-  setDraft({ ...recipients(), subject, body });
-};
-$('ad-go').onclick = () => {
-  const reason = $('ad-reason').value.trim(), next = lines($('ad-next').value), def = lines($('ad-def').value);
-  const deferred = def.length ? def : remaining().map(i => i.title);
-  const body = join([
-    'Hello all,', '',
-    `${mtitle()} is being adjourned early${reason ? ' – '+reason : ''}. Thank you for your time and contributions.`, '',
-    'Next steps:', bullets(next, 'Follow-up details to be shared separately'), '',
-    'Deferred items:', bullets(deferred, 'None'), '',
-    sig()
-  ]);
-  setDraft({ ...recipients(), subject:`[${mtitle()}] Early Adjournment – Next Steps`, body });
-};
 
-/* ---------- Scheduling ---------- */
-const SC = ['title','date','time','venue','agenda','actions','od','ot','nd','nt','reason','ri','newv','oldv','dead','rn'];
-const v = k => $('sc-'+k).value.trim();
-function syncScFields() {
-  const t = $('sc-type').value;
-  document.querySelectorAll('#sc-fields [data-for]').forEach(el => el.classList.toggle('hidden', !el.dataset.for.split(' ').includes(t)));
+/* ---------- Header / routing ---------- */
+function renderHeader() {
+  const sel = $('meeting-select');
+  sel.innerHTML = state.meetings.map(m => `<option value="${m.id}"${m.id === state.current ? ' selected' : ''}>${esc(m.name || 'Untitled meeting')}</option>`).join('') + '<option value="__new">＋ New meeting…</option>';
 }
-function generateSchedule() {
-  const t = $('sc-type').value, title = v('title') || mtitle();
-  const ag = v('agenda') ? lines(v('agenda')) : state.agenda.map(itemLine);
-  const dead = v('dead') ? new Date(v('dead')).toLocaleString([], {dateStyle:'full', timeStyle:'short'}) : '[deadline TBD]';
-  let subject, body;
-  switch (t) {
-    case 'invite':
-      subject = `Invitation: ${title} – ${dateFmt(v('date'))}`;
-      body = join(['Hello all,', '', `You are invited to ${title}.`, '',
-        `  • Date & time: ${dateFmt(v('date'), v('time'))}`, `  • Venue / link: ${v('venue') || '[to be confirmed]'}`, `  • Chair: ${chair()}`, '',
-        'Agenda overview:', bullets(ag, 'To be circulated'), '',
-        'Please complete before the meeting:', bullets(lines(v('actions')), 'No pre-work required'), '',
-        'Kindly confirm your attendance.', '', sig()]); break;
-    case 'resched':
-      subject = `Rescheduled: ${title} – now ${dateFmt(v('nd'))}`;
-      body = join(['Hello all,', '', `${title} has been rescheduled.`, '',
-        `  • Previous: ${dateFmt(v('od'), v('ot'))}`, `  • New: ${dateFmt(v('nd'), v('nt'))}`, v('reason') && `  • Reason: ${v('reason')}`, '',
-        'Please update your calendars. Apologies for any inconvenience.', '', sig()]); break;
-    case 'cancel':
-      subject = `Cancelled: ${title} – ${dateFmt(v('od'))}`;
-      body = join(['Hello all,', '', `${title} scheduled for ${dateFmt(v('od'), v('ot'))} has been cancelled.`, '',
-        v('reason') && `  • Reason: ${v('reason')}`, `  • Will be rescheduled: ${v('ri')}`, '',
-        (v('ri') === 'Yes' ? 'A new invitation will follow shortly.' : 'No new date is planned at this time.') + ' Thank you for your understanding.', '', sig()]); break;
-    case 'venue':
-      subject = `Venue/Link Update: ${title}${v('date') ? ' – '+dateFmt(v('date')) : ''}`;
-      body = join(['Hello all,', '', `The venue / link for ${title}${v('date') ? ' on '+dateFmt(v('date'), v('time')) : ''} has changed.`, '',
-        `  • New location / link: ${v('newv') || '[TBD]'}`, v('oldv') && `  • Replaces: ${v('oldv')}`, '',
-        'Please use the updated details; the previous ones will no longer work.', '', sig()]); break;
-    default:
-      subject = `Reminder & Call for Agenda Items: ${title}${v('date') ? ' – '+dateFmt(v('date')) : ''}`;
-      body = join(['Hello all,', '', `This is a reminder about ${title}${v('date') ? ' on '+dateFmt(v('date'), v('time')) : ''}.`, '',
-        `  • Agenda item submission deadline: ${dead}`, `  • Send items to: ${chair()}`, '',
-        state.agenda.length && 'Current agenda:', state.agenda.length && bullets(state.agenda.map(itemLine)), state.agenda.length && '',
-        v('rn') && v('rn'), v('rn') && '',
-        'Please submit your topics by the deadline.', '', sig()]);
+$('meeting-select').addEventListener('change', e => {
+  if (e.target.value === '__new') { createMeeting(); return; }
+  state.current = e.target.value; state.undo = null; save(); renderAll();
+});
+function createMeeting(src) {
+  const m = src ? { ...JSON.parse(JSON.stringify(src)), id:uid(), name:src.name + ' (copy)' } : newMeeting('New meeting');
+  if (src) m.agenda = m.agenda.map(i => ({ ...i, id:uid(), status:'pending', startedAt:null }));
+  state.meetings.push(m); state.current = m.id; state.undo = null; save();
+  location.hash = '#setup'; renderAll();
+  setTimeout(() => { $('m-name').focus(); $('m-name').select(); }, 50);
+}
+function route() {
+  const h = (location.hash || '#run').slice(1);
+  const page = ['run','setup','templates'].includes(h) ? h : 'run';
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + page));
+  document.querySelectorAll('header nav a').forEach(a => a.toggleAttribute('aria-current', a.dataset.page === page) || a.removeAttribute('aria-current'));
+  document.querySelectorAll('header nav a').forEach(a => { if (a.dataset.page === page) a.setAttribute('aria-current', 'page'); });
+  if (page === 'run') renderRun(); if (page === 'setup') renderSetup(); if (page === 'templates') renderTemplates();
+  window.scrollTo(0, 0);
+}
+const renderAll = () => { renderHeader(); route(); };
+window.addEventListener('hashchange', route);
+
+/* ---------- Run page ---------- */
+function elapsedText(a) {
+  if (!a || !a.startedAt) return '';
+  const mins = Math.max(0, Math.round((Date.now() - a.startedAt) / 60000));
+  return `Started ${clock(new Date(a.startedAt))} · ${mins} min elapsed${a.duration ? ' of ' + a.duration : ''}`;
+}
+function renderRun() {
+  const m = M(), a = active(), n = nextAfter(a);
+  $('run-title').textContent = m.name || 'Run meeting';
+  const box = (it, extra) => it ? `<div class="t">${esc(it.title)}</div><div class="meta">${esc(it.speaker || '—')} · ${esc(it.duration || 0)} min</div>${extra || ''}` : '<span class="empty">None</span>';
+  const undo = state.undo && state.undo.meeting === m.id;
+  const label = !n ? 'No more items to start' : a ? `▶ Next item starting: ${esc(n.title)}` : `▶ Start first item: ${esc(n.title)}`;
+  $('run-status').innerHTML = !m.agenda.length
+    ? `<p class="empty" style="margin:0">No agenda yet. <a href="#setup">Add agenda items in Setup</a>. You can still use the quick actions below.</p>`
+    : `<div class="now"><div class="box cur"><h4>Now</h4>${box(a, `<div class="meta" id="elapsed">${esc(elapsedText(a))}</div>`)}</div><div class="box"><h4>Up next</h4>${box(n)}</div></div>
+       <div class="row"><button class="btn big" data-act="next" ${n ? '' : 'disabled'}>${label}</button>
+       ${a && !n ? '<button class="btn sec" data-act="finish">✔ Finish current item</button>' : ''}
+       ${undo ? '<button class="btn sec" data-act="undo">↩ Undo last change</button>' : ''}</div>`;
+  const tb = t => `<button class="qbtn${t.urgent ? ' urgent' : ''}" data-tpl="${t.id}"><span class="ic">${esc(t.icon || '✉️')}</span>${esc(t.name)}</button>`;
+  const sb = t => `<button class="qbtn small" data-tpl="${t.id}"><span class="ic">${esc(t.icon || '✉️')}</span>${esc(t.name)}</button>`;
+  $('run-quick').innerHTML = state.templates.filter(t => t.cat === 'live' && t.role !== 'start').map(tb).join('') || '<span class="empty">No emails here. Add one under “Email wording”.</span>';
+  $('run-sched').innerHTML = state.templates.filter(t => t.cat === 'schedule').map(sb).join('') || '<span class="empty">None</span>';
+  $('run-agenda').innerHTML = m.agenda.length ? m.agenda.map((it, i) => `
+    <li class="${it.status}" data-id="${it.id}"><span class="num">${i + 1}</span>
+      <div><div class="title">${esc(it.title)} <span class="badge b-${it.status}">${it.status}</span></div><div class="meta">${esc(it.speaker || '—')} · ${esc(it.duration || 0)} min</div></div>
+      <div class="row">
+        ${it.status === 'pending' ? '<button class="btn sm" data-act="start">▶ Start</button><button class="btn sec sm" data-act="skip">Skip</button>' : ''}
+        ${it.status === 'active' ? '<button class="btn sec sm" data-act="done">✔ Done</button>' : ''}
+        ${it.status !== 'pending' ? '<button class="btn sec sm" data-act="reopen">↺ Reopen</button>' : ''}
+      </div></li>`).join('') : '<li class="empty" style="display:block">No agenda items.</li>';
+}
+setInterval(() => { const el = $('elapsed'); if (el) el.textContent = elapsedText(active()); }, 30000);
+
+function startItem(id) {
+  const it = M().agenda.find(i => i.id === id); if (!it) return;
+  snapshot();
+  const prev = active();
+  if (prev && prev !== it) prev.status = 'done';
+  it.status = 'active'; it.startedAt = Date.now(); save(); renderRun();
+  openEmail('start', { item:it, prev: prev && prev !== it ? prev : null });
+}
+$('page-run').addEventListener('click', e => {
+  const q = e.target.closest('[data-tpl]'); if (q) { openEmail(q.dataset.tpl); return; }
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act, m = M(), id = b.closest('li') && b.closest('li').dataset.id, it = id && m.agenda.find(i => i.id === id);
+  if (act === 'next') { const n = nextAfter(active()); if (n) startItem(n.id); return; }
+  if (act === 'start') return startItem(id);
+  if (act === 'finish') { snapshot(); const a = active(); if (a) a.status = 'done'; }
+  if (act === 'done' && it) { snapshot(); it.status = 'done'; }
+  if (act === 'reopen' && it) { snapshot(); it.status = 'pending'; it.startedAt = null; }
+  if (act === 'skip' && it) { snapshot(); it.status = 'skipped'; save(); renderRun(); openEmail('skip', { vals:{ skipped_item:it.title } }); return; }
+  if (act === 'undo' && state.undo) { state.undo.snap.forEach(s => { const i = m.agenda.find(x => x.id === s.id); if (i) { i.status = s.status; i.startedAt = s.startedAt; } }); state.undo = null; }
+  if (act === 'reset-all') { if (!confirm('Reset all items to pending?')) return; snapshot(); m.agenda.forEach(i => { i.status = 'pending'; i.startedAt = null; }); }
+  save(); renderRun();
+});
+
+/* ---------- Setup page ---------- */
+function renderSetup() {
+  const m = M();
+  ['name','chair','to','cc'].forEach(k => $('m-' + k).value = m[k] || '');
+  renderAgendaEditor();
+}
+function renderAgendaEditor() {
+  const m = M(), total = m.agenda.reduce((s, i) => s + (+i.duration || 0), 0);
+  $('ag-total').textContent = m.agenda.length ? `· ${m.agenda.length} items · ${total} min` : '';
+  $('agenda-editor').innerHTML = m.agenda.length ? m.agenda.map((it, n) => `
+    <div class="item" data-id="${it.id}">
+      <div class="item-top"><span class="num">${n + 1}</span>
+        <input data-f="title" value="${esc(it.title)}" placeholder="Item title" aria-label="Title">
+        <input data-f="speaker" value="${esc(it.speaker)}" placeholder="Presenter" aria-label="Presenter">
+        <input data-f="duration" type="number" min="0" value="${esc(it.duration)}" aria-label="Minutes">
+        <div class="row"><button class="btn sec sm" data-act="up" ${n === 0 ? 'disabled' : ''} aria-label="Move up">↑</button><button class="btn sec sm" data-act="down" ${n === m.agenda.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button><button class="btn sec sm" data-act="preview">✉ Preview</button><button class="btn sec sm" data-act="del" aria-label="Delete">🗑</button></div>
+      </div>
+      <details><summary>More: recipients, notes, custom email</summary>
+        <div class="grid more">
+          <div><label>To (overrides default)</label><input data-f="to" value="${esc(it.to)}" placeholder="blank = meeting default"></div>
+          <div><label>Notes / summary</label><input data-f="notes" value="${esc(it.notes)}"></div>
+          <div class="full"><label>Custom subject (optional)</label><input data-f="subject" value="${esc(it.subject)}" placeholder="blank = use the “Next item starting” wording"></div>
+          <div class="full"><label>Custom body (optional)</label><textarea data-f="body" placeholder="blank = use the standard wording. Placeholders like {item} and {now} work here.">${esc(it.body)}</textarea></div>
+        </div>
+      </details>
+    </div>`).join('') : '<p class="empty">No items yet. Type a title above and press Enter.</p>';
+}
+$('page-setup').addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.m) { M()[el.dataset.m] = el.value; save(); if (el.dataset.m === 'name') renderHeader(); return; }
+  const row = el.closest('.item'); if (!row || !el.dataset.f) return;
+  const it = M().agenda.find(i => i.id === row.dataset.id); if (!it) return;
+  it[el.dataset.f] = el.dataset.f === 'duration' ? Math.max(0, +el.value || 0) : el.value; save();
+});
+function addItem(data) { M().agenda.push(blankItem(data)); save(); renderAgendaEditor(); }
+$('new-title').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('page-setup').querySelector('[data-act=add-item]').click(); } });
+$('page-setup').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act, m = M(), row = b.closest('.item'), id = row && row.dataset.id, n = id ? m.agenda.findIndex(i => i.id === id) : -1;
+  if (act === 'add-item') {
+    const t = $('new-title').value.trim(); if (!t) { toast('Type a title first'); $('new-title').focus(); return; }
+    addItem({ title:t, speaker:$('new-speaker').value.trim(), duration:Math.max(0, +$('new-dur').value || 0) });
+    $('new-title').value = ''; $('new-speaker').value = ''; $('new-title').focus(); return;
   }
-  setDraft({ ...recipients(), subject, body }, true);
+  if (act === 'paste-add') {
+    const ls = $('paste').value.split('\n').map(s => s.trim()).filter(Boolean);
+    ls.forEach(l => { const [t, s, d] = l.split(/\s*\|\s*|\t/); if (t) m.agenda.push(blankItem({ title:t, speaker:s || '', duration: d && +d ? +d : 10 })); });
+    $('paste').value = ''; save(); renderAgendaEditor(); toast(ls.length + ' items added'); return;
+  }
+  if (act === 'm-new') return createMeeting();
+  if (act === 'm-dup') return createMeeting(m);
+  if (act === 'm-del') {
+    if (state.meetings.length < 2) { toast('Keep at least one meeting'); return; }
+    if (!confirm(`Delete "${m.name}" and its agenda?`)) return;
+    state.meetings = state.meetings.filter(x => x.id !== m.id); state.current = state.meetings[0].id; state.undo = null; save(); renderAll(); return;
+  }
+  if (n < 0) return;
+  if (act === 'up' && n > 0) [m.agenda[n-1], m.agenda[n]] = [m.agenda[n], m.agenda[n-1]];
+  if (act === 'down' && n < m.agenda.length - 1) [m.agenda[n+1], m.agenda[n]] = [m.agenda[n], m.agenda[n+1]];
+  if (act === 'del') { if (!confirm('Delete this agenda item?')) return; m.agenda.splice(n, 1); }
+  if (act === 'preview') return openEmail('start', { item:m.agenda[n], prev:m.agenda[n-1] || null, preview:true });
+  save(); renderAgendaEditor();
+});
+
+/* ---------- Templates page ---------- */
+function renderTemplates() {
+  $('tpl-list').innerHTML = state.templates.map(t => `
+    <div class="card tpl" id="tpl-${t.id}" data-tid="${t.id}">
+      <div class="grid" style="grid-template-columns:70px minmax(160px,2fr) minmax(140px,1fr);align-items:end;margin-bottom:10px">
+        <div><label>Icon</label><input data-f="icon" value="${esc(t.icon)}"></div>
+        <div><label>Button name</label><input data-f="name" value="${esc(t.name)}"></div>
+        <div><label>Shown under</label><select data-f="cat"><option value="live"${t.cat === 'live' ? ' selected' : ''}>Something just happened</option><option value="schedule"${t.cat === 'schedule' ? ' selected' : ''}>Scheduling &amp; logistics</option></select></div>
+      </div>
+      <div class="grid"><div class="full"><label>Subject</label><input data-f="subject" value="${esc(t.subject)}"></div>
+      <div class="full"><label>Body</label><textarea data-f="body" rows="10" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px">${esc(t.body)}</textarea></div></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn sec sm" data-act="t-preview">✉ Preview</button>
+        ${defaultTemplates().some(d => d.id === t.id) ? '<button class="btn sec sm" data-act="t-reset">Reset to original</button>' : ''}
+        ${t.role === 'start' ? '' : `<label style="margin:0;text-transform:none;font-size:13px"><input type="checkbox" data-f="urgent" ${t.urgent ? 'checked' : ''}> Highlight in red</label>`}
+        ${t.role === 'start' ? '<span class="hint">Used when you start an agenda item.</span>' : '<button class="btn sec sm" data-act="t-del" style="margin-left:auto">Delete</button>'}
+      </div>
+    </div>`).join('');
 }
-$('sc-type').onchange = () => { syncScFields(); generateSchedule(); };
-SC.forEach(k => { $('sc-'+k).addEventListener('input', generateSchedule); $('sc-'+k).addEventListener('change', generateSchedule); });
+const tplFor = el => state.templates.find(t => t.id === el.closest('.tpl').dataset.tid);
+$('page-templates').addEventListener('input', e => {
+  const f = e.target.dataset.f; if (!f || f === 'cat' || f === 'urgent') return;
+  tplFor(e.target)[f] = e.target.value; save();
+});
+$('page-templates').addEventListener('change', e => {
+  const f = e.target.dataset.f; if (f !== 'cat' && f !== 'urgent') return;
+  tplFor(e.target)[f] = f === 'urgent' ? e.target.checked : e.target.value; save();
+});
+$('page-templates').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act;
+  if (act === 't-new') {
+    const t = { id:uid(), cat:'live', icon:'✉️', name:'New email', urgent:false, subject:'[{meeting}] Subject here', body:'Hello all,\n\n{details}\n' + SIG };
+    state.templates.push(t); save(); renderTemplates();
+    setTimeout(() => { const el = $('tpl-' + t.id); el.scrollIntoView({ block:'center' }); el.querySelector('[data-f=name]').select(); }, 30); return;
+  }
+  if (act === 't-restore') {
+    if (!confirm('Reset all built-in emails to their original wording? Your own custom emails are kept.')) return;
+    const defs = defaultTemplates(), custom = state.templates.filter(t => !defs.some(d => d.id === t.id));
+    state.templates = defs.concat(custom); save(); renderTemplates(); return;
+  }
+  const el = b.closest('.tpl'); if (!el) return;
+  const t = tplFor(b);
+  if (act === 't-preview') return openEmail(t, { preview:true, item: t.role === 'start' ? (active() || M().agenda[0] || null) : undefined });
+  if (act === 't-reset') { const d = defaultTemplates().find(x => x.id === t.id); Object.assign(t, d); save(); renderTemplates(); }
+  if (act === 't-del') { if (!confirm(`Delete "${t.name}"?`)) return; state.templates = state.templates.filter(x => x !== t); save(); renderTemplates(); }
+});
 
 /* ---------- Init ---------- */
-syncScFields(); updateBreakReturn(); renderAgenda(); renderPreview();
+renderHeader(); route();
 })();
 </script>
 </body>
