@@ -161,11 +161,12 @@ code{background:#eef1f8;padding:1px 5px;border-radius:5px;font-size:13px}
   <section class="page" id="page-run">
     <h2><svg class="i"><use href="#i-play"/></svg><span id="run-title">Run meeting</span></h2>
     <p class="sub">Pick what is happening. The email is written for you, ready to send.</p>
-    <div class="card" id="run-status"></div>
-    <div class="card urgent-wrap"><h3>⚡ Something just happened</h3><div class="qgrid" id="run-quick"></div></div>
+    <p class="note hidden" id="run-note">This meeting does not use live status emails. Use the scheduling emails below.</p>
+    <div class="live-only"><div class="card" id="run-status"></div>
+    <div class="card urgent-wrap"><h3>⚡ Something just happened</h3><div class="qgrid" id="run-quick"></div></div></div>
     <div class="card"><h3>📅 Scheduling &amp; logistics</h3><div class="qgrid" id="run-sched"></div></div>
-    <div class="toolbar"><div class="info">Agenda</div><div class="btns"><button class="btn sec sm" data-act="reset-all">Reset progress</button></div></div>
-    <div class="tw"><table class="dt"><thead><tr><th class="id">ID</th><th>Title</th><th>Presenter</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead><tbody id="run-agenda"></tbody></table></div>
+    <div class="live-only"><div class="toolbar"><div class="info">Agenda</div><div class="btns"><button class="btn sec sm" data-act="reset-all">Reset progress</button></div></div>
+    <div class="tw"><table class="dt"><thead><tr><th class="id">ID</th><th>Title</th><th>Presenter</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead><tbody id="run-agenda"></tbody></table></div></div>
   </section>
 
   <!-- SETUP -->
@@ -181,11 +182,13 @@ code{background:#eef1f8;padding:1px 5px;border-radius:5px;font-size:13px}
           <div><label for="m-chair">Chairperson</label><input id="m-chair" data-m="chair"></div>
           <div><label for="m-to">To (default recipients)</label><input id="m-to" data-m="to" placeholder="a@x.com, b@x.com"></div>
           <div><label for="m-cc">CC</label><input id="m-cc" data-m="cc"></div>
+          <div class="full"><label><input type="checkbox" id="m-live"> Send live status emails for this meeting (next item starting, break, technical issues)</label></div>
         </div>
         <div class="row" style="margin-top:12px"><button class="btn sec sm" data-act="m-new">＋ New meeting</button><button class="btn sec sm" data-act="m-dup">Duplicate</button><button class="btn sec sm" data-act="m-del">Delete meeting</button></div>
       </div>
     </details>
 
+    <div class="live-only">
     <div class="toolbar">
       <div class="info" id="ag-info"></div>
       <div class="btns">
@@ -222,6 +225,7 @@ code{background:#eef1f8;padding:1px 5px;border-radius:5px;font-size:13px}
       <tbody id="agenda-body"></tbody>
     </table></div>
     <p class="hint">Click <b>✎</b> on a row to edit it, set its own recipients, notes or a custom “next item starting” email. Click <b>👁</b> to preview exactly what will be sent.</p>
+    </div>
   </section>
 
   <!-- TEMPLATES -->
@@ -431,14 +435,26 @@ ${SIG}` }
 
 /* ---------- State ---------- */
 const blankItem = (o = {}) => ({ id:uid(), title:'', speaker:'', duration:10, notes:'', to:'', subject:'', body:'', status:'pending', startedAt:null, ...o });
-const newMeeting = name => ({ id:uid(), name, chair:'', to:'', cc:'', agenda:[] });
+const newMeeting = (name, live = false) => ({ id:uid(), name, chair:'', to:'', cc:'', live, agenda:[] });
+const LIVE_MEETINGS = ['FCM', 'TCM', 'BCM'];
+const OTHER_MEETINGS = ['BBFR', 'BBFR e-M', 'BCM e-M', 'BCR', 'BCSC', 'CASL', 'CASL e-M', 'CMC', 'FCM e-M', 'FOA', 'FOA e-M', 'Panel', 'Panel e-M', 'Panel e-M APP/NA', 'Panel e-M Completeness', 'Panel e-M RoD', 'Panel e-M RoD Following FCM', 'Panel Nominations', 'Petition', 'PPRP', 'PPRP e-M'];
+function seedMeetings(s) {
+  if (s.seeded) return;
+  s.seeded = true;
+  const untouched = s.meetings.length === 1 && s.meetings[0].name === 'My Meeting' && !s.meetings[0].agenda.length && !s.meetings[0].to;
+  if (untouched) s.meetings = [];
+  const have = new Set(s.meetings.map(m => m.name.toLowerCase()));
+  [...LIVE_MEETINGS.map(n => [n, true]), ...OTHER_MEETINGS.map(n => [n, false])].forEach(([n, live]) => { if (!have.has(n.toLowerCase())) s.meetings.push(newMeeting(n, live)); });
+  if (!s.meetings.some(m => m.id === s.current)) s.current = s.meetings[0].id;
+}
 
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
     if (s && s.meetings && s.meetings.length) {
       if (!s.templates || !s.templates.length) s.templates = defaultTemplates();
-      s.meetings.forEach(m => m.agenda = (m.agenda || []).map(i => blankItem(i)));
+      s.meetings.forEach(m => { m.agenda = (m.agenda || []).map(i => blankItem(i)); if (m.live === undefined) m.live = true; });
+      seedMeetings(s);
       return s;
     }
   } catch {}
@@ -451,7 +467,9 @@ function load() {
       m.agenda = (o.agenda || []).map(i => blankItem({ title:i.title, speaker:i.speaker, duration:i.duration, notes:i.notes, to:i.to, status:i.status === 'active' ? 'pending' : (i.status || 'pending') }));
     }
   } catch {}
-  return { meetings:[m], current:m.id, templates:defaultTemplates(), undo:null };
+  const fresh = { meetings:[m], current:m.id, templates:defaultTemplates(), undo:null };
+  m.live = true; seedMeetings(fresh);
+  return fresh;
 }
 let state = load();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
@@ -643,7 +661,9 @@ $('e-edit').addEventListener('click', () => {
 /* ---------- Header / routing ---------- */
 function renderHeader() {
   const sel = $('meeting-select');
-  sel.innerHTML = state.meetings.map(m => `<option value="${m.id}"${m.id === state.current ? ' selected' : ''}>${esc(m.name || 'Untitled meeting')}</option>`).join('') + '<option value="__new">＋ New meeting…</option>';
+  const opt = m => `<option value="${m.id}"${m.id === state.current ? ' selected' : ''}>${esc(m.name || 'Untitled meeting')}</option>`;
+  const live = state.meetings.filter(m => m.live), other = state.meetings.filter(m => !m.live);
+  sel.innerHTML = (live.length ? `<optgroup label="Live status emails">${live.map(opt).join('')}</optgroup>` : '') + (other.length ? `<optgroup label="Scheduling emails only">${other.map(opt).join('')}</optgroup>` : '') + '<option value="__new">＋ New meeting…</option>';
 }
 $('meeting-select').addEventListener('change', e => {
   if (e.target.value === '__new') { createMeeting(); return; }
@@ -677,6 +697,8 @@ function elapsedText(a) {
 function renderRun() {
   const m = M(), a = active(), n = nextAfter(a);
   $('run-title').textContent = m.name || 'Run meeting';
+  document.querySelectorAll('#page-run .live-only').forEach(e => e.classList.toggle('hidden', !m.live));
+  $('run-note').classList.toggle('hidden', !!m.live);
   const box = (it, extra) => it ? `<div class="t">${esc(it.title)}</div><div class="meta">${esc(it.speaker || '—')} · ${esc(it.duration || 0)} min</div>${extra || ''}` : '<span class="empty">None</span>';
   const undo = state.undo && state.undo.meeting === m.id;
   const label = !n ? 'No more items to start' : a ? `▶ Next item starting: ${esc(n.title)}` : `▶ Start first item: ${esc(n.title)}`;
@@ -730,6 +752,8 @@ $('page-run').addEventListener('click', e => {
 function renderSetup() {
   const m = M();
   ['name','chair','to','cc'].forEach(k => $('m-' + k).value = m[k] || '');
+  $('m-live').checked = !!m.live;
+  document.querySelectorAll('#page-setup .live-only').forEach(e => e.classList.toggle('hidden', !m.live));
   renderAgendaEditor();
 }
 const flt = {};
@@ -766,6 +790,7 @@ function renderAgendaEditor() {
 }
 $('page-setup').addEventListener('input', e => {
   const el = e.target;
+  if (el.id === 'm-live') { M().live = el.checked; save(); renderHeader(); renderSetup(); return; }
   if (el.dataset.m) { M()[el.dataset.m] = el.value; save(); if (el.dataset.m === 'name') renderHeader(); return; }
   if (el.dataset.flt) { flt[el.dataset.flt] = el.value.trim(); renderAgendaEditor(); return; }
   const row = el.closest('.edit-row'); if (!row || !el.dataset.f) return;
