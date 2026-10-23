@@ -121,6 +121,12 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .pv-row label{margin:0}
 .pv-body{min-height:260px;font-family:Arial,Helvetica,sans-serif;font-size:12pt;line-height:1.5}
 #mem-box{margin-bottom:14px}
+.trk{border:1px solid #9bb7d4;background:#f4f9fe;padding:10px 12px;margin-bottom:14px}
+.trk textarea{min-height:70px}
+.open-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 0;border-top:1px solid #e3e3e3}
+.open-row:first-child{border-top:0}
+.open-row .what{flex:1;min-width:220px}
+.open-row .what small{display:block;color:#666}
 .vitem{border:1px solid var(--line);background:#fff;padding:10px 12px;margin:6px 0 10px}
 .vhead{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:8px}
 .vhead input{width:110px}
@@ -181,6 +187,7 @@ code{background:#eef1f8;padding:1px 5px;border-radius:5px;font-size:13px}
     <p class="note hidden" id="run-note">This meeting does not use live status emails. Use the scheduling emails below.</p>
     <div class="live-only"><div class="card" id="run-status"></div>
     <div class="card urgent-wrap"><h3>⚡ Something just happened</h3><div class="qgrid" id="run-quick"></div></div></div>
+    <div class="card hidden" id="run-open-card"><h3>📂 Open e-Ms <span class="hint">(distributed, waiting for approval)</span></h3><div id="run-open"></div></div>
     <div class="card hidden" id="run-own-card"><h3 id="run-own-title">✉️ Meeting emails</h3><div class="qgrid" id="run-own"></div></div>
     <div class="card" id="run-sched-card"><h3>📅 Scheduling &amp; logistics</h3><div class="qgrid" id="run-sched"></div></div>
     <div class="live-only"><div class="toolbar"><div class="info">Agenda</div><div class="btns"><button class="btn sec sm" data-act="reset-all">Reset progress</button></div></div>
@@ -771,23 +778,69 @@ function openEmail(tpl, opts = {}) {
   const subjText = custom && item.subject.trim() ? item.subject : tpl.subject;
   const bodyText = custom && item.body.trim() ? item.body : tpl.body;
   const fields = parseFields(subjText + '\n' + bodyText);
-  if (/\{(members_fr|members_en|votes_fr|votes_en)\}/.test(subjText + bodyText)) ctx.mem = newMem(m);
+  if (/\{(members_fr|members_en|votes_fr|votes_en)\}/.test(subjText + bodyText)) {
+    ctx.mem = newMem(m);
+    if (opts.rec && opts.rec.items.length) ctx.mem.items = opts.rec.items.map(i => ({ num:i.num, title:i.title, outcome:'approved', votes:{} }));
+  }
   const vals = {};
   fields.forEach(f => vals[f.key] = defaultFor(f, ctx));
   Object.assign(vals, opts.vals || {});
-  dlg = { tpl, ctx, subjText, bodyText, fields, vals };
+  dlg = { tpl, ctx, subjText, bodyText, fields, vals, rec:opts.rec || null, track:tpl.id === 'bbfr-distribution', itemsText:'', closeRec:true };
   files = []; renderFiles();
+  if (opts.rec) loadRecFiles(opts.rec);
   $('e-title').textContent = `${tpl.icon || '✉️'} ${tpl.name}`;
   $('e-to').value = (custom && item.to) ? item.to : m.to;
   $('e-cc').value = m.cc;
   const fe = $('e-fields');
-  fe.classList.toggle('hidden', !fields.length && !ctx.mem);
-  fe.innerHTML = (ctx.mem ? memHTML(ctx.mem) : '') + fields.map(fieldHTML).join('');
+  fe.classList.toggle('hidden', !fields.length && !ctx.mem && !dlg.track && !dlg.rec);
+  fe.innerHTML = trackHTML() + (ctx.mem ? memHTML(ctx.mem) : '') + fields.map(fieldHTML).join('');
   regen();
   const d = $('dlg'); if (!d.open) d.showModal();
   const first = fe.querySelector('.chip[aria-pressed=true], input, select, textarea');
   if (first && !fields.length) $('e-mail').focus(); else if (first) first.focus();
 }
+/* ---------- Open e-Ms: remember distributed e-Ms, their items and documents ---------- */
+const idb = () => new Promise((res, rej) => { const r = indexedDB.open('meetingMailer.files', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+const idbDo = async (mode, fn) => { const db = await idb(); return new Promise((res, rej) => { const q = fn(db.transaction('f', mode).objectStore('f')); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); };
+const openList = () => state.open || (state.open = []);
+function parseItems(text) {
+  return text.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const m = l.match(/^(\S+)\s*[-–:]?\s*(.*)$/); return { num:m[1], title:m[2] }; });
+}
+function trackHTML() {
+  if (dlg.track) return `<div class="trk"><label for="trk-items">Items in this e-M (saved to “Open e-Ms” when you copy or open the email)</label>
+    <textarea id="trk-items" data-trk-items placeholder="One per line, e.g.\n3.1 Item title\n3.2 Another item">${esc(dlg.itemsText)}</textarea>
+    <span class="hint">Documents you drop below are saved too, so Approval can re-attach them.</span></div>`;
+  if (dlg.rec) return `<div class="trk"><b>Open e-M:</b> ${esc(dlg.rec.date || 'no date')} · ${dlg.rec.items.length} item(s) · ${dlg.rec.files.length} document(s) re-attached below
+    <label style="text-transform:none;margin-top:6px"><input type="checkbox" data-trk-close checked> Remove it from Open e-Ms once I copy or send this email</label></div>`;
+  return '';
+}
+async function loadRecFiles(rec) {
+  const got = [];
+  for (const f of rec.files) { try { const b = await idbDo('readonly', st => st.get(f.key)); if (b) got.push(new File([b], f.name, { type:f.type })); } catch {} }
+  if (dlg && dlg.rec === rec) { got.forEach(f => { if (!files.some(x => x.name === f.name && x.size === f.size)) files.push(f); }); renderFiles(); }
+}
+async function trackSave() {
+  const m = M(), date = dlg.vals.meeting_date || '';
+  let rec = openList().find(r => r.meetingId === m.id && r.date === date);
+  if (!rec) { rec = { id:uid(), meetingId:m.id, date, items:[], files:[], created:Date.now() }; openList().push(rec); }
+  const items = parseItems(dlg.itemsText); if (items.length) rec.items = items;
+  for (const f of files) {
+    if (rec.files.some(x => x.name === f.name && x.size === f.size)) continue;
+    const key = uid() + uid();
+    try { await idbDo('readwrite', st => st.put(f, key)); rec.files.push({ key, name:f.name, type:f.type, size:f.size }); } catch {}
+  }
+  save(); renderRun(); toast('Saved to Open e-Ms');
+}
+async function dropRec(rec) {
+  for (const f of rec.files) { try { await idbDo('readwrite', st => st.delete(f.key)); } catch {} }
+  state.open = openList().filter(r => r !== rec); save(); renderRun();
+}
+$('e-fields').addEventListener('input', e => { if (dlg && e.target.hasAttribute('data-trk-items')) dlg.itemsText = e.target.value; });
+$('e-fields').addEventListener('change', e => { if (dlg && e.target.hasAttribute('data-trk-close')) dlg.closeRec = e.target.checked; });
+['e-mail', 'e-eml', 'e-all', 'e-bodycopy'].forEach(id => $(id).addEventListener('click', () => {
+  if (!dlg) return;
+  if (dlg.track) trackSave(); else if (dlg.rec && dlg.closeRec) { const r = dlg.rec; dlg.rec = null; setTimeout(() => dropRec(r), 1500); }
+}));
 function memHTML(mem) {
   if (!mem.rows.length) return '<div id="mem-box"><p class="empty">No members yet. Add them under Setup → Members.</p></div>';
   const present = mem.rows.filter(r => r.present), gone = mem.rows.filter(r => r.out);
@@ -798,7 +851,7 @@ function memHTML(mem) {
     <td><button type="button" class="btn sec sm" data-mrem aria-label="Remove ${esc(r.name)} from this panel">✕</button></td></tr>`).join('');
   const items = mem.items.map((it, n) => `<div class="vitem" data-i="${n}">
     <div class="vhead"><label>Item
-      <input data-inum value="${esc(it.num)}" placeholder="e.g. 3.1"></label>
+      <input data-inum value="${esc(it.num)}" placeholder="e.g. 3.1"></label>${it.title ? `<span class="hint">${esc(it.title)}</span>` : ''}
       <label>Decision <select data-iout>${OUTCOMES.map(([v, l]) => `<option value="${v}"${it.outcome === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
       ${mem.items.length > 1 ? '<button type="button" class="btn sec sm" data-idel aria-label="Remove item">🗑 Remove</button>' : ''}</div>
     <div class="vgrid">${present.map(r => `<label data-mid="${r.id}">${esc(r.name)}
@@ -1020,6 +1073,9 @@ function renderRun() {
   document.querySelectorAll('#page-run .live-only').forEach(e => e.classList.toggle('hidden', !m.live));
   $('run-note').classList.toggle('hidden', !!m.live || isEM(m));
   $('run-sched-card').classList.toggle('hidden', isEM(m));
+  const recs = isEM(m) ? openList().filter(r => r.meetingId === m.id) : [];
+  $('run-open-card').classList.toggle('hidden', !recs.length);
+  $('run-open').innerHTML = recs.map(r => `<div class="open-row" data-rid="${r.id}"><div class="what"><b>${esc(r.date || 'No date')}</b><small>${r.items.map(i => esc(i.num + (i.title ? ' ' + i.title : ''))).join(' · ') || 'No items listed'} — ${r.files.length} document(s)</small></div><button class="btn" data-oact="approve">✅ Prepare approval</button><button class="btn sec sm" data-oact="drop" aria-label="Remove from open e-Ms">🗑</button></div>`).join('');
   const box = (it, extra) => it ? `<div class="t">${esc(it.title)}</div><div class="meta">${esc(it.speaker || '—')} · ${esc(it.duration || 0)} min</div>${extra || ''}` : '<span class="empty">None</span>';
   const undo = state.undo && state.undo.meeting === m.id;
   const label = !n ? 'No more items to start' : a ? `▶ Next item starting: ${esc(n.title)}` : `▶ Start first item: ${esc(n.title)}`;
@@ -1060,6 +1116,13 @@ function startItem(id) {
 }
 $('page-run').addEventListener('click', e => {
   const q = e.target.closest('[data-tpl]'); if (q) { openEmail(q.dataset.tpl); return; }
+  const o = e.target.closest('[data-oact]');
+  if (o) {
+    const rec = openList().find(r => r.id === o.closest('[data-rid]').dataset.rid); if (!rec) return;
+    if (o.dataset.oact === 'approve') openEmail('bbfr-approval', { rec, vals:{ meeting_date:rec.date } });
+    else if (confirm('Remove this e-M and its saved documents from the list?')) dropRec(rec);
+    return;
+  }
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act, m = M(), id = b.closest('tr') && b.closest('tr').dataset.id, it = id && m.agenda.find(i => i.id === id);
   if (act === 'next') { const n = nextAfter(active()); if (n) startItem(n.id); return; }
