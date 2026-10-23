@@ -121,6 +121,8 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .pv-row label{margin:0}
 .pv-body{min-height:260px;font-family:Arial,Helvetica,sans-serif;font-size:12pt;line-height:1.5}
 #mem-box{margin-bottom:14px}
+.tpick{display:flex;align-items:center;gap:6px}
+.tpick select{width:auto;min-width:78px}
 .drop{border:2px dashed #9bb7d4;background:#f4f9fe;padding:14px;text-align:center;margin:10px 0;cursor:pointer;font-size:14px}
 .drop.over{background:#dcecfb;border-color:var(--brand)}
 .files{list-style:none;margin:8px 0 0;padding:0;text-align:left}
@@ -805,8 +807,13 @@ function fieldHTML(f) {
     inner = `<select data-fk="${k}">${items.map(i => `<option${i.title === cur ? ' selected' : ''}>${esc(i.title)}</option>`).join('')}</select>`;
   } else if (f.kind === 'textarea') {
     inner = `<textarea data-fk="${k}" rows="3" placeholder="One per line">${esc(cur)}</textarea>`;
+  } else if (f.kind === 'time') {
+    const [h = '', mi = ''] = cur.split(':'), p = n => String(n).padStart(2, '0');
+    const mm = ['00', '15', '30', '45'].includes(mi) ? mi : (mi ? p(Math.round(+mi / 15) % 4 * 15) : '');
+    inner = `<div class="tpick" data-tp="${k}"><select aria-label="Hour"><option value="">--</option>${Array.from({ length: 24 }, (_, i) => `<option${p(i) === h ? ' selected' : ''}>${p(i)}</option>`).join('')}</select> :
+      <select aria-label="Minutes"><option value="">--</option>${['00', '15', '30', '45'].map(x => `<option${x === mm ? ' selected' : ''}>${x}</option>`).join('')}</select></div>`;
   } else {
-    const type = { date:'date', time:'time', datetime:'datetime-local' }[f.kind] || 'text';
+    const type = { date:'date', datetime:'datetime-local' }[f.kind] || 'text';
     inner = `<input data-fk="${k}" type="${type}" value="${esc(cur)}">`;
   }
   return `<div><label>${esc(label)}</label>${inner}</div>`;
@@ -826,6 +833,12 @@ $('e-fields').addEventListener('click', e => {
   regen();
 });
 ['input','change'].forEach(ev => $('e-fields').addEventListener(ev, e => {
+  const tp = e.target.closest('[data-tp]');
+  if (tp) {
+    const [hs, ms] = tp.querySelectorAll('select');
+    if (hs.value && !ms.value) ms.value = '00';
+    dlg.vals[tp.dataset.tp] = hs.value ? `${hs.value}:${ms.value}` : ''; regen(); return;
+  }
   const k = e.target.dataset.fk; if (!k) return;
   dlg.vals[k] = e.target.value; regen();
 }));
