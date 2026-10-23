@@ -659,9 +659,9 @@ const WORDS = {
   }
 };
 function newMem(m) {
-  const rows = state.members.map(x => ({ id:x.id, name:x.name, f:!!x.f, present:true, chair:false, alt:false }));
+  const rows = state.members.map(x => ({ id:x.id, name:x.name, f:!!x.f, present:!(m.out || []).includes(x.id), out:(m.out || []).includes(x.id), chair:false, alt:false }));
   const want = (m.chair || '').trim().toLowerCase();
-  const c = rows.find(r => r.id === m.chairId) || rows.find(r => want && r.name.toLowerCase() === want) || rows[0];
+  const c = rows.find(r => !r.out && r.id === m.chairId) || rows.find(r => !r.out) || rows.find(r => want && r.name.toLowerCase() === want) || rows[0];
   if (c) c.chair = true;
   return { rows, items:[{ num:'', outcome:'approved', votes:{} }] };
 }
@@ -786,11 +786,12 @@ function openEmail(tpl, opts = {}) {
 }
 function memHTML(mem) {
   if (!mem.rows.length) return '<div id="mem-box"><p class="empty">No members yet. Add them under Setup → Members.</p></div>';
-  const present = mem.rows.filter(r => r.present);
-  const att = mem.rows.map(r => `<tr data-mid="${r.id}"><td class="l">${esc(r.name)}</td>
+  const present = mem.rows.filter(r => r.present), gone = mem.rows.filter(r => r.out);
+  const att = mem.rows.filter(r => !r.out).map(r => `<tr data-mid="${r.id}"><td class="l">${esc(r.name)}</td>
     <td><input type="checkbox" data-mpres aria-label="Present: ${esc(r.name)}"${r.present ? ' checked' : ''}></td>
     <td><input type="radio" name="mem-chair" data-mchair aria-label="Chairperson: ${esc(r.name)}"${r.chair ? ' checked' : ''}></td>
-    <td><input type="checkbox" data-malt aria-label="Alternate: ${esc(r.name)}"${r.alt ? ' checked' : ''}></td></tr>`).join('');
+    <td><input type="checkbox" data-malt aria-label="Alternate: ${esc(r.name)}"${r.alt ? ' checked' : ''}></td>
+    <td><button type="button" class="btn sec sm" data-mrem aria-label="Remove ${esc(r.name)} from this panel">✕</button></td></tr>`).join('');
   const items = mem.items.map((it, n) => `<div class="vitem" data-i="${n}">
     <div class="vhead"><label>Item
       <input data-inum value="${esc(it.num)}" placeholder="e.g. 3.1"></label>
@@ -799,10 +800,12 @@ function memHTML(mem) {
     <div class="vgrid">${present.map(r => `<label data-mid="${r.id}">${esc(r.name)}
       <select data-ivote>${VOTES.map(([v, l]) => `<option value="${v}"${(it.votes[r.id] || 'with') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`).join('') || '<span class="hint">Tick at least one member as present.</span>'}</div></div>`).join('');
   return `<div id="mem-box"><label>1. Who took part, and who chairs</label>
-    <div class="tw"><table class="dt mem-t"><thead><tr><th class="l">Member</th><th>Present</th><th>Chair</th><th>Alternate</th></tr></thead><tbody>${att}</tbody></table></div>
+    <div class="tw"><table class="dt mem-t"><thead><tr><th class="l">Member</th><th>Present</th><th>Chair</th><th>Alternate</th><th>Remove</th></tr></thead><tbody>${att}</tbody></table></div>
+    ${gone.length ? `<div class="vhead"><label>Add a removed member back <select data-madd><option value="">Choose…</option>${gone.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select></label></div>` : ''}
     <label>2. Items and how each member voted</label>${items}
     <button type="button" class="btn sec sm" data-iadd>＋ Add another item</button></div>`;
 }
+const saveOut = mem => { M().out = mem.rows.filter(r => r.out).map(r => r.id); save(); };
 const memEvent = e => {
   const t = e.target, mem = dlg && dlg.ctx.mem; if (!mem) return;
   const row = t.closest('[data-mid]'), r = row && mem.rows.find(x => x.id === row.dataset.mid);
@@ -817,12 +820,18 @@ const memEvent = e => {
   else if (t.hasAttribute('data-mpres') && r && e.type === 'change') { r.present = t.checked; fixChair(); redraw(); }
   else if (t.hasAttribute('data-mchair') && r && e.type === 'change') { mem.rows.forEach(x => x.chair = x === r); r.present = true; M().chairId = r.id; save(); redraw(); }
   else if (t.hasAttribute('data-malt') && r) r.alt = t.checked;
+  else if (t.hasAttribute('data-madd') && t.value && e.type === 'change') { const x = mem.rows.find(y => y.id === t.value); x.out = false; x.present = true; saveOut(mem); redraw(); }
   else return;
   regen();
 };
 ['input', 'change'].forEach(ev => $('e-fields').addEventListener(ev, memEvent));
 $('e-fields').addEventListener('click', e => {
-  const mem = dlg && dlg.ctx.mem, b = e.target.closest('[data-iadd],[data-idel]'); if (!mem || !b) return;
+  const mem = dlg && dlg.ctx.mem, b = e.target.closest('[data-iadd],[data-idel],[data-mrem]'); if (!mem || !b) return;
+  if (b.hasAttribute('data-mrem')) {
+    const r = mem.rows.find(x => x.id === b.closest('tr').dataset.mid); r.out = true; r.present = false; r.chair = false;
+    if (!mem.rows.some(x => x.chair && x.present)) { const c = mem.rows.find(x => x.present); if (c) c.chair = true; }
+    saveOut(mem); $('mem-box').outerHTML = memHTML(mem); regen(); return;
+  }
   if (b.hasAttribute('data-iadd')) mem.items.push({ num:'', outcome:'approved', votes:{} });
   else mem.items.splice(+b.closest('[data-i]').dataset.i, 1);
   $('mem-box').outerHTML = memHTML(mem); regen();
