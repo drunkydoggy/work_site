@@ -285,12 +285,12 @@ const BBFR_TAIL = 'EFLB Réunion-é / BBFR e-Meeting {meeting_date}';
 const bbfrTemplates = () => {
   const mk = (id, icon, name, subj, fr, en) => ({ id:'bbfr-' + id, only:'BBFR e-M', cat:'own', icon, name, urgent:false,
     subject:`${subj}: ${BBFR_TAIL}`, body:`${fr}\n\n________________________________\n\n${en}` });
-  const votes = { fr:'L\'article {item_number} a été {decision_fr:approuvé|rejeté|approuvé tel que modifié} par {for_members}, et {decision2_fr:approuvé|rejeté|approuvé tel que modifié} par {other_members}, ainsi que {abstained_members?} qui se sont abstenus.',
-    en:'Item {item_number} has been {decision_en:approved|rejected|approved as amended} by {for_members}, and {decision2_en:approved|rejected|approved as amended} by {other_members}, and {abstained_members?} who abstained.' };
+  const votes = { fr:'L\'article {item_number} a été {decision_fr:approuvé|rejeté|approuvé tel que modifié} par {for_members}, et {decision2_fr:approuvé|rejeté|approuvé tel que modifié} par {other_members}.\n\nAbstentions : {abstained_members?}',
+    en:'Item {item_number} has been {decision_en:approved|rejected|approved as amended} by {for_members}, and {decision2_en:approved|rejected|approved as amended} by {other_members}.\n\nAbstained: {abstained_members?}' };
   return [
     mk('announce', '📣', 'Announce', 'Announce: NOUVEAU/NEW',
-      'Veuillez noter qu\'il y aura une réunion du Comité d\'examen des fonds pour la large bande électronique (R-é), le {meeting_date}. {announce_rest_fr}',
-      'Please note that there will be a Broadband Fund Review e-Meeting on {meeting_date}. {announce_rest_en}'),
+      'Veuillez noter qu\'il y aura une réunion du Comité d\'examen des fonds pour la large bande électronique (R-é), le {meeting_date_fr} à {meeting_time_fr} avec un délai de réponse de {response_hours:24|48|72} heures – {reply_date_fr} à {reply_time_fr}.\n\n{description_fr_points}',
+      'Please note that there will be an electronic Broadband Fund Review Committee Meeting (e-M), on {meeting_date}, at {meeting_time} with a {response_hours}-hour reply period – {reply_date}, at {reply_time}.\n\n{description_en_points}'),
     mk('distribution', '📎', 'Distribution', 'Distribution',
       'Veuillez trouver ci-joint des documents pour votre attention avec une période de réponse de {response_hours:24|48|72} heures – {distribution_rest_fr}',
       'Please find attached documents for your attention with a response period of {response_hours:24|48|72} hours – {distribution_rest_en}'),
@@ -506,6 +506,7 @@ function load() {
     if (s && s.meetings && s.meetings.length) {
       if (!s.templates || !s.templates.length) s.templates = defaultTemplates();
       if (!s.bbfrSeeded) { s.bbfrSeeded = true; bbfrTemplates().forEach(t => { if (!s.templates.some(x => x.id === t.id)) s.templates.push(t); }); }
+      if (!s.announceV2) { s.announceV2 = true; const i = s.templates.findIndex(x => x.id === 'bbfr-announce'); if (i >= 0) s.templates[i] = bbfrTemplates()[0]; }
       s.meetings.forEach(m => { m.agenda = (m.agenda || []).map(i => blankItem(i)); if (m.live === undefined) m.live = true; });
       seedMeetings(s);
       return s;
@@ -551,6 +552,7 @@ function parseFields(text) {
   const map = new Map();
   for (const m of text.matchAll(PH)) {
     let [, key, q, opts] = m;
+    key = key.replace(/((?:date|time)(?:line)?)_fr$/, '$1');
     if (key === 'return_time') { key = 'minutes'; q = ''; opts = undefined; }
     else if (AUTO.has(key)) continue;
     const f = map.get(key) || { key, optional:true, options:null };
@@ -578,6 +580,8 @@ function defaultFor(f, ctx) {
 }
 const dLong = s => { const [y,m,d] = s.split('-').map(Number); const dt = new Date(y, m-1, d); return isNaN(dt) ? s : dt.toLocaleDateString([], {weekday:'long', year:'numeric', month:'long', day:'numeric'}); };
 const t12 = s => { const [h,mi] = s.split(':').map(Number); const dt = new Date(2000,0,1,h,mi); return isNaN(dt) ? s : clock(dt); };
+const dLongFr = s => { const [y,m,d] = s.split('-').map(Number); const dt = new Date(y, m-1, d); return isNaN(dt) ? s : dt.toLocaleDateString('fr-CA', {weekday:'long', year:'numeric', month:'long', day:'numeric'}); };
+const t24fr = s => { const [h,mi] = s.split(':').map(Number); return isNaN(h) ? s : `${h} h${mi ? ' ' + String(mi).padStart(2, '0') : ''}`; };
 const dtl = s => { const dt = new Date(s); return isNaN(dt) ? s : dt.toLocaleString([], {dateStyle:'full', timeStyle:'short'}); };
 
 function autoVars(ctx, vals) {
@@ -596,8 +600,10 @@ function autoVars(ctx, vals) {
 function renderText(text, vals, ctx) {
   const auto = autoVars(ctx, vals);
   const val = key => {
+    const fr = /(?:date|time)_fr$/.test(key); if (fr) key = key.slice(0, -3);
     const v = key in auto ? auto[key] : (vals[key] ?? '');
     if (!v || key in auto) return v;
+    if (fr) return /date$/.test(key) ? dLongFr(v) : t24fr(v);
     return /deadline$/.test(key) ? dtl(v) : /date$/.test(key) ? dLong(v) : /time$/.test(key) ? t12(v) : v;
   };
   const out = [];
@@ -613,7 +619,7 @@ function renderText(text, vals, ctx) {
     const t = line.replace(PH, (_, key, q) => {
       const v = val(key); if (v) return v;
       if (q) { emptyOpt = true; return ''; }
-      return '[' + humanize(key === 'return_time' ? 'minutes' : key) + ']';
+      return '[' + humanize((key === 'return_time' ? 'minutes' : key).replace(/_fr$/, '')) + ']';
     });
     if (emptyOpt && (/^[\s•-]*$/.test(t) || /:\s*$/.test(t))) { out.push({ drop:true }); continue; }
     out.push({ t: emptyOpt ? t.replace(/\s+$/, '') : t });
