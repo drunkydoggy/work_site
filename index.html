@@ -121,6 +121,8 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .pv-row label{margin:0}
 .pv-body{min-height:260px;font-family:Arial,Helvetica,sans-serif;font-size:12pt;line-height:1.5}
 #mem-box{margin-bottom:14px}
+.trk-d summary{cursor:pointer;font-size:13px;color:#555;font-weight:600}
+.trk-d textarea{margin-top:6px}
 .chk{display:flex;gap:8px;align-items:center;text-transform:none;font-weight:400;margin-top:8px}
 .open-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 0;border-top:1px solid #e3e3e3}
 .open-row:first-child{border-top:0}
@@ -806,9 +808,8 @@ function parseItems(text) {
   return text.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const m = l.match(/^(\S+)\s*[-–:]?\s*(.*)$/); return { num:m[1], title:m[2] }; });
 }
 function trackHTML() {
-  if (dlg.track) return `<div><label for="trk-items">Items in this e-M</label>
-    <textarea id="trk-items" data-trk-items rows="3" placeholder="One per line, e.g. 3.1 Item title">${esc(dlg.itemsText)}</textarea>
-    <span class="hint">Saved to Open e-Ms with your documents when you copy or open the email.</span></div>`;
+  if (dlg.track) return `<details class="trk-d"${dlg.itemsText ? ' open' : ''}><summary>Add items for Approval (optional)</summary>
+    <textarea id="trk-items" data-trk-items rows="3" aria-label="Items in this e-M" placeholder="One per line, e.g. 3.1 Item title">${esc(dlg.itemsText)}</textarea></details>`;
   if (dlg.rec) return `<div><label>Open e-M</label>
     <span class="hint">${esc(dlg.rec.date || 'No date')} · ${dlg.rec.items.length} item(s) · ${dlg.rec.files.length} document(s) re-attached below</span>
     <label class="chk"><input type="checkbox" data-trk-close checked> Remove from Open e-Ms after I copy or send this</label></div>`;
