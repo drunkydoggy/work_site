@@ -245,8 +245,13 @@ code{background:#eef1f8;padding:1px 5px;border-radius:5px;font-size:13px}
       </div>
     </div>
     <div class="card hidden" id="import-panel">
-      <div id="imp-drop" class="drop" tabindex="0" role="button" aria-label="Import a Word agenda">📄 <b>Drop the Word agenda (.docx) here</b> or click to browse
-        <input type="file" id="imp-file" accept=".docx" hidden></div>
+      <div class="grid">
+        <div id="imp-drop" class="drop" tabindex="0" role="button" aria-label="Import the English Word agenda">🇬🇧 <b>English agenda (.docx)</b><br>Drop here or click to browse<div id="imp-st-en" class="hint"></div>
+          <input type="file" id="imp-file" accept=".docx" hidden></div>
+        <div id="imp-drop-fr" class="drop" tabindex="0" role="button" aria-label="Import the French Word agenda">🇫🇷 <b>Ordre du jour français (.docx)</b><br>Drop here or click to browse<div id="imp-st-fr" class="hint"></div>
+          <input type="file" id="imp-file-fr" accept=".docx" hidden></div>
+      </div>
+      <p class="hint">Upload both so the emails use the French and English item titles. Rows are matched by day and start time. In-camera sessions are left out.</p>
       <div id="imp-out"></div>
     </div>
     <div class="card hidden" id="paste-panel">
@@ -389,11 +394,11 @@ const INTERP_EN = '  • Interpretation service is available for this meeting. P
 const DIV = '\n\n________________________________\n\n';
 const inPersonTemplates = () => {
   const mk = (id, icon, name, subj, fr, en, extra = {}) => ({ id, cat:'live', icon, name, urgent:false, only:'FCM, TCM, BCM', subject:`${subj}{meeting_code} {meeting_date}`, body:fr + DIV + en, ...extra });
-  const what = 'avec {resume_kind_fr:la présentation|l\'article|le point} {resume_item}';
-  const whatEn = 'with {resume_kind_en:the presentation|item|the topic} {resume_item}';
+  const what = 'avec {resume_kind_fr:la présentation|l\'article|le point} {resume_item_fr}';
+  const whatEn = 'with {resume_kind_en:the presentation|item|the topic} {resume_item_en}';
   return [
-    mk('start', '▶️', 'Next item starting', '', `Le Conseil considère actuellement l'article {item}\n\n${INTERP_FR}`, `The Commission is currently considering item {item}\n\n${INTERP_EN}`, { role:'start', only:'' }),
-    mk('presentation', '🎤', 'Presentation', 'Presentation: ', `Le Conseil considère actuellement la présentation de {item}\n\n${INTERP_FR}`, `The Commission is currently considering the presentation of {item}\n\n${INTERP_EN}`),
+    mk('start', '▶️', 'Next item starting', '', `Le Conseil considère actuellement l'article {item_fr}\n\n${INTERP_FR}`, `The Commission is currently considering item {item_en}\n\n${INTERP_EN}`, { role:'start', only:'' }),
+    mk('presentation', '🎤', 'Presentation', 'Presentation: ', `Le Conseil considère actuellement la présentation de {item_fr}\n\n${INTERP_FR}`, `The Commission is currently considering the presentation of {item_en}\n\n${INTERP_EN}`),
     mk('break', '☕', 'Break', 'Break: ', `Le Conseil prend une pause et reprendra à {return_time_fr} ${what}.`, `The Commission is taking a break and will resume at {return_time} ${whatEn}.`, { urgent:true }),
     mk('lunch', '🍽️', 'Lunch break', 'Lunch Break: ', `Le Conseil prend une pause pour le dîner et reprendra à {resume_time_fr} ${what}.`, `The Commission is taking a lunch break and will resume at {resume_time} ${whatEn}.`),
     mk('endofday', '🌙', 'End of day', 'End of day: ', `Le Conseil a fini pour la journée et reprendra demain à {resume_time_fr} ${what}.`, `The Commission has finished for the day and will resume tomorrow at {resume_time} ${whatEn}.`),
@@ -574,6 +579,15 @@ function load() {
         const rest = s.templates.filter(t => !ids.has(t.id));
         s.templates = fresh.concat(rest);
       }
+      if (!s.bilingV1) {
+        s.bilingV1 = true;
+        const sep = '________________________________';
+        s.templates.forEach(t => {
+          const i = (t.body || '').indexOf(sep); if (i < 0) return;
+          const sw = (x, l) => x.replace(/\{(item|resume_item)\}/g, '{$1_' + l + '}');
+          t.body = sw(t.body.slice(0, i), 'fr') + t.body.slice(i, i + sep.length) + sw(t.body.slice(i + sep.length), 'en');
+        });
+      }
       if (!s.announceV2) { s.announceV2 = true; const i = s.templates.findIndex(x => x.id === 'bbfr-announce'); if (i >= 0) s.templates[i] = bbfrTemplates()[0]; }
       s.meetings.forEach(m => { m.agenda = (m.agenda || []).map(i => blankItem(i)); if (m.live === undefined) m.live = true; });
       seedMeetings(s);
@@ -625,7 +639,7 @@ const snapshot = () => { state.undo = { meeting:M().id, snap:M().agenda.map(i =>
 
 /* ---------- Template engine ---------- */
 const PH = /\{(\w+)(\?)?(?::([^}]*))?\}/g;
-const AUTO = new Set(['reply_date','reply_time','meeting','meeting_code','chair','now','today','item','item_speaker','item_duration','item_notes','prev_item','next_item','remaining','return_time','em_title','members_fr','members_en','votes_fr','votes_en']);
+const AUTO = new Set(['reply_date','reply_time','meeting','meeting_code','chair','now','today','item','item_fr','item_en','resume_item_fr','resume_item_en','item_speaker','item_duration','item_notes','prev_item','next_item','remaining','return_time','em_title','members_fr','members_en','votes_fr','votes_en']);
 const TEXTAREA = /(steps|deferred|points|actions|details|notes|overview)$/;
 const BULLET = /(steps|deferred|points|actions|overview)$/;
 
@@ -654,11 +668,11 @@ function resumeVals(ctx) {
   const a = M().agenda, cur = ctx.item || active();
   let tgt;
   if (cur) {
-    const after = a.slice(a.findIndex(i => i.id === cur.id) + 1).find(i => i.status === 'pending' && i.kind !== 'incamera'); (cur.kind === 'break' || cur.kind === 'lunch' || (ctx.tpl && ctx.tpl.id === 'endofday')) ? after : cur;
+    const after = a.slice(a.findIndex(i => i.id === cur.id) + 1).find(i => i.status === 'pending' && i.kind !== 'incamera'); tgt = (cur.kind === 'break' || cur.kind === 'lunch' || (ctx.tpl && ctx.tpl.id === 'endofday')) ? after : cur;
   } else tgt = a.find(i => i.status === 'pending');
   if (!tgt) return {};
   const isItem = (tgt.kind || 'item') === 'item';
-  return { resume_time:tgt.time || '', resume_item:tgt.title, resume_kind_fr:isItem ? "l'article" : 'le point', resume_kind_en:isItem ? 'item' : 'the topic' };
+  return { resume_time:tgt.time || '', resume_item:tgt.title, resume_item_fr:tgt.title_fr || tgt.title, resume_kind_fr:isItem ? "l'article" : 'le point', resume_kind_en:isItem ? 'item' : 'the topic' };
 }
 function defaultFor(f, ctx) {
   const k = f.key;
@@ -752,7 +766,8 @@ function autoVars(ctx, vals) {
   return {
     meeting: m.name || 'Meeting', meeting_code: ({ FCM:'RPC/FCM', BCM:'RCR/BCM', TCM:'RCT/TCM' })[(m.name || '').trim().toUpperCase()] || m.name || 'Meeting', chair: m.chair || '', now: clock(now),
     today: now.toLocaleDateString([], {weekday:'long', year:'numeric', month:'long', day:'numeric'}),
-    item: ctx.item ? ctx.item.title : '', item_speaker: ctx.item ? ctx.item.speaker : '',
+    item: ctx.item ? ctx.item.title : '', item_en: ctx.item ? ctx.item.title : '', item_fr: ctx.item ? (ctx.item.title_fr || ctx.item.title) : '',
+    resume_item_en: resumeVals(ctx).resume_item || '', resume_item_fr: resumeVals(ctx).resume_item_fr || '', item_speaker: ctx.item ? ctx.item.speaker : '',
     item_duration: ctx.item && ctx.item.duration ? ctx.item.duration + ' min' : '', item_notes: ctx.item ? ctx.item.notes : '',
     prev_item: ctx.prev ? ctx.prev.title : '', next_item: ctx.next ? ctx.next.title : '',
     remaining: remainingItems().filter(i => !skip || i.title !== skip).map(itemLine).join('\n'),
@@ -1225,6 +1240,7 @@ const ico = (act, name, label, extra = '') => `<button class="ico${extra}" data-
 function editRow(it) {
   return `<tr class="edit-row" data-id="${it.id}"><td colspan="6"><div class="grid">
     <div><label>Title</label><input data-f="title" value="${esc(it.title)}"></div>
+    <div><label>Titre (français)</label><input data-f="title_fr" value="${esc(it.title_fr || '')}" placeholder="blank = same as Title"></div>
     <div><label>Presenter</label><input data-f="speaker" value="${esc(it.speaker)}"></div>
     <div><label>Minutes</label><input data-f="duration" type="number" min="0" value="${esc(it.duration)}"></div>
     <div><label>Start time</label><input data-f="time" type="time" value="${esc(it.time || '')}"></div>
@@ -1373,7 +1389,7 @@ async function unzipEntry(buf, name) {
   throw new Error('nodoc');
 }
 function parseTime(s) {
-  const m = /(\d{1,2})(?:[:.h](\d{2}))?\s*([ap])\.?\s*m\.?/i.exec(s) || /(\d{1,2})[:h](\d{2})()/.exec(s);
+  const m = /(\d{1,2})(?:(?:\s*h\s*|[:.])(\d{2}))?\s*([ap])\.?\s*m\.?/i.exec(s) || /(\d{1,2})(?:\s*h\s*|:)(\d{2})()/i.exec(s);
   if (!m) return '';
   let h = +m[1]; const mi = +(m[2] || 0), ap = (m[3] || '').toLowerCase();
   if (ap === 'p' && h < 12) h += 12; if (ap === 'a' && h === 12) h = 0;
@@ -1424,8 +1440,9 @@ async function parseDocx(file) {
         continue;
       }
       if (!title && !notes) continue;
-      const kind = /^(break|pause)\b/i.test(title) ? 'break' : /lunch|d[îi]ner/i.test(title) ? 'lunch' : /in[- ]camera|huis clos/i.test(title) ? 'incamera' : /^item\s*\d/i.test(title) ? 'item' : 'other';
-      last = { inc:true, day, section, time, duration: mins.reduce((a, b) => a + b, 0), kind, title: title.replace(/^item\s*/i, ''), notes, speaker: leads.map(x => x.t).join(', ') };
+      const kind = /^(break|pause)\b/i.test(title) ? 'break' : /lunch|d[îi]ner/i.test(title) ? 'lunch' : /in[- ]camera|huis clos/i.test(title) ? 'incamera' : /^(item|point|article)\s*\d/i.test(title) ? 'item' : 'other';
+      if (kind === 'incamera') { last = null; continue; }
+      last = { inc:true, day, section, time, duration: mins.reduce((a, b) => a + b, 0), kind, title: title.replace(/^(item|point|article)\s*(?=\d)/i, ''), notes, speaker: leads.map(x => x.t).join(', ') };
       rows.push(last);
     }
   }
@@ -1435,26 +1452,41 @@ let impRows = [];
 function renderImport() {
   const o = $('imp-out');
   if (!impRows.length) { o.innerHTML = ''; return; }
-  o.innerHTML = `<div class="tw"><table class="dt"><thead><tr><th>Use</th><th>Day</th><th>Time</th><th>Min</th><th>Type</th><th>Title</th><th>Lead(s)</th></tr></thead><tbody>${impRows.map((r, i) => `<tr data-i="${i}">
+  o.innerHTML = `<div class="tw"><table class="dt"><thead><tr><th>Use</th><th>Day</th><th>Time</th><th>Min</th><th>Type</th><th>Title</th><th>Titre (FR)</th><th>Lead(s)</th></tr></thead><tbody>${impRows.map((r, i) => `<tr data-i="${i}">
     <td><input type="checkbox" data-k="inc"${r.inc ? ' checked' : ''} aria-label="Include"></td><td>${esc(r.day || '—')}</td><td>${esc(r.time || '—')}</td><td>${r.duration}</td>
     <td><select data-k="kind">${KINDS.map(([v, l]) => `<option value="${v}"${r.kind === v ? ' selected' : ''}>${l}</option>`).join('')}</select></td>
-    <td class="l">${esc(r.title)}</td><td>${esc(r.speaker)}</td></tr>`).join('')}</tbody></table></div>
+    <td class="l">${esc(r.title)}</td><td class="l">${esc(r.title_fr || '—')}</td><td>${esc(r.speaker)}</td></tr>`).join('')}</tbody></table></div>
     <p class="hint">${impRows.filter(r => r.inc).length} rows will be imported. Check the Type column: breaks and lunch get their own emails.</p>
     <button class="btn" data-act="imp-replace">Replace agenda</button> <button class="btn sec" data-act="imp-add">Add to agenda</button>`;
 }
-async function importFile(f) {
+const impRaw = { en:[], fr:[] };
+function mergeImport() {
+  const base = impRaw.en.length ? impRaw.en : impRaw.fr, byKey = new Map(impRaw.fr.map(r => [r.day + '|' + r.time, r]));
+  const sameLen = impRaw.en.length === impRaw.fr.length;
+  impRows = base.map((r, i) => {
+    const o = { ...r };
+    if (impRaw.en.length && impRaw.fr.length) { const f = (r.time && byKey.get(r.day + '|' + r.time)) || (sameLen ? impRaw.fr[i] : null); o.title_fr = f ? f.title : ''; }
+    else if (!impRaw.en.length) o.title_fr = r.title;
+    return o;
+  });
+  if (impRaw.en.length && impRaw.fr.length) { const miss = impRows.filter(r => !r.title_fr).length; if (miss) toast(miss + ' rows have no French match. Check the Titre (FR) column'); }
+}
+async function importFile(f, lang = 'en') {
   if (!f) return;
   if (/\.doc$/i.test(f.name)) { toast('Please save the agenda as .docx first'); return; }
-  try { impRows = await parseDocx(f); }
-  catch (err) { impRows = []; toast(err.message === 'nodecomp' ? 'This browser cannot read Word files. Try a recent Chrome or Edge' : 'Could not read that file. Is it a .docx?'); renderImport(); return; }
-  if (!impRows.length) toast('No agenda table found in that file');
-  renderImport();
+  try { impRaw[lang] = await parseDocx(f); }
+  catch (err) { impRaw[lang] = []; toast(err.message === 'nodecomp' ? 'This browser cannot read Word files. Try a recent Chrome or Edge' : 'Could not read that file. Is it a .docx?'); }
+  const s = $('imp-st-' + lang); s.textContent = impRaw[lang].length ? `✔ ${f.name} (${impRaw[lang].length} rows)` : '';
+  if (!impRaw[lang].length) toast('No agenda table found in that file');
+  mergeImport(); renderImport();
 }
-$('imp-drop').addEventListener('click', () => $('imp-file').click());
-$('imp-drop').addEventListener('dragover', e => { e.preventDefault(); $('imp-drop').classList.add('over'); });
-$('imp-drop').addEventListener('dragleave', () => $('imp-drop').classList.remove('over'));
-$('imp-drop').addEventListener('drop', e => { e.preventDefault(); $('imp-drop').classList.remove('over'); importFile(e.dataTransfer.files[0]); });
-$('imp-file').addEventListener('change', e => { importFile(e.target.files[0]); e.target.value = ''; });
+[['imp-drop', 'imp-file', 'en'], ['imp-drop-fr', 'imp-file-fr', 'fr']].forEach(([d, fi, lang]) => {
+  $(d).addEventListener('click', () => $(fi).click());
+  $(d).addEventListener('dragover', e => { e.preventDefault(); $(d).classList.add('over'); });
+  $(d).addEventListener('dragleave', () => $(d).classList.remove('over'));
+  $(d).addEventListener('drop', e => { e.preventDefault(); $(d).classList.remove('over'); importFile(e.dataTransfer.files[0], lang); });
+  $(fi).addEventListener('change', e => { importFile(e.target.files[0], lang); e.target.value = ''; });
+});
 $('imp-out').addEventListener('change', e => {
   const tr = e.target.closest('tr[data-i]'); if (!tr) return;
   const r = impRows[+tr.dataset.i];
@@ -1464,13 +1496,13 @@ $('imp-out').addEventListener('change', e => {
 $('imp-out').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   e.stopPropagation();
-  const m = M(), items = impRows.filter(r => r.inc).map(r => blankItem({ title:r.title, speaker:r.speaker, duration:r.duration, notes:r.notes, time:r.time, day:r.day, kind:r.kind, section:r.section }));
+  const m = M(), items = impRows.filter(r => r.inc).map(r => blankItem({ title:r.title, title_fr:r.title_fr || '', speaker:r.speaker, duration:r.duration, notes:r.notes, time:r.time, day:r.day, kind:r.kind, section:r.section }));
   if (!items.length) { toast('Nothing selected'); return; }
   if (b.dataset.act === 'imp-replace') {
     if (m.agenda.length && !confirm(`Replace the ${m.agenda.length} items in "${m.name}"?`)) return;
     m.agenda = items;
   } else m.agenda.push(...items);
-  state.undo = null; impRows = []; renderImport(); save(); renderAgendaEditor(); $('import-panel').classList.add('hidden'); toast(items.length + ' items imported');
+  state.undo = null; impRows = []; impRaw.en = []; impRaw.fr = []; $('imp-st-en').textContent = ''; $('imp-st-fr').textContent = ''; renderImport(); save(); renderAgendaEditor(); $('import-panel').classList.add('hidden'); toast(items.length + ' items imported');
 });
 
 /* ---------- Init ---------- */
