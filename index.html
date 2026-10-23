@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting Mailer – Status, Scramble &amp; Scheduling Emails</title>
+<style>
+:root{
+  --bg:#f3f5f9;--panel:#fff;--ink:#1c2333;--muted:#667085;--line:#e2e6ee;
+  --brand:#3b5bdb;--brand-d:#2f49b3;--ok:#2b8a3e;--warn:#e67700;--red:#e03131;
+  --radius:12px;--shadow:0 1px 3px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.05);
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+html{scroll-behavior:smooth;scroll-padding-top:70px}
+header.top{background:#161b2e;color:#cfd5e6;position:sticky;top:0;z-index:5}
+header.top .in{max-width:960px;margin:0 auto;padding:10px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+header.top strong{color:#fff;font-size:16px}
+header.top nav{display:flex;gap:4px;flex-wrap:wrap}
+header.top a{color:#cfd5e6;text-decoration:none;padding:6px 10px;border-radius:8px;font-size:14px}
+header.top a:hover,header.top a:focus-visible{background:#242b45;outline:none}
+header.top a.sos{color:#ffa8a8}
+main{max-width:960px;margin:0 auto;padding:24px 20px 60px;min-width:0}
+section.view{margin-bottom:40px}
+h2{margin:0 0 4px;font-size:22px}
+.sub{color:var(--muted);margin:0 0 18px}
+h1.page{font-size:30px;margin:8px 0 6px}
+.lead{color:var(--muted);margin:0 0 32px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
+.card h3{margin:0 0 12px;font-size:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.grid .full{grid-column:1/-1}
+label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.03em}
+input,select,textarea{width:100%;font:inherit;padding:8px 10px;border:1px solid #cdd3e0;border-radius:8px;background:#fff;color:var(--ink)}
+textarea{resize:vertical;min-height:70px}
+input:focus,select:focus,textarea:focus{outline:2px solid #bac8ff;border-color:var(--brand)}
+.btn{font:inherit;font-weight:600;border:1px solid transparent;border-radius:8px;padding:8px 14px;cursor:pointer;background:var(--brand);color:#fff}
+.btn:hover{background:var(--brand-d)}
+.btn.sec{background:#fff;color:var(--ink);border-color:#cdd3e0}
+.btn.sec:hover{background:#f1f3f9}
+.btn.danger{background:var(--red)}
+.btn.danger:hover{background:#c92a2a}
+.btn.warn{background:var(--warn)}
+.btn.warn:hover{background:#cc6a00}
+.btn.sm{padding:4px 9px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle}
+.b-pending{background:#e9ecef;color:#495057}.b-active{background:#d3f9d8;color:var(--ok)}
+.b-done{background:#dbe4ff;color:var(--brand-d)}.b-skipped{background:#fff3bf;color:#9c6500}
+.agenda{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.agenda li{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;background:#fff}
+.agenda li.active{border-color:#69db7c;background:#f4fcf5}
+.agenda li.done,.agenda li.skipped{opacity:.7}
+.agenda .num{font-weight:700;color:var(--muted);width:24px}
+.agenda .meta{color:var(--muted);font-size:13px}
+.agenda .title{font-weight:600}
+.now{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.now .box{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fafbfe}
+.now .box.cur{background:#f4fcf5;border-color:#69db7c}
+.now h4{margin:0 0 4px;font-size:12px;text-transform:uppercase;color:var(--muted);letter-spacing:.04em}
+.sos-card{border:2px solid #ffc9c9;background:#fff5f5}
+.sos-card h3{color:var(--red)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid #cdd3e0;background:#fff;border-radius:99px;padding:6px 14px;cursor:pointer;font:inherit;font-size:14px}
+.chip[aria-pressed=true]{background:var(--red);border-color:var(--red);color:#fff}
+.hint{font-size:13px;color:var(--muted)}
+.return{font-size:18px;font-weight:700;color:var(--red)}
+.pv-row{display:grid;grid-template-columns:62px 1fr;gap:8px;align-items:center;margin-bottom:8px}
+.pv-row label{margin:0}
+.pv-body{min-height:300px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.5}
+.empty{color:var(--muted);font-style:italic}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:#161b2e;color:#fff;padding:10px 18px;border-radius:8px;transition:.25s;z-index:9;opacity:0}
+.toast.show{transform:translateX(-50%);opacity:1}
+.hidden{display:none!important}
+@media(max-width:720px){
+  main{padding:16px 14px 40px}
+  .now{grid-template-columns:1fr}
+  .agenda li{grid-template-columns:auto 1fr}
+  .agenda li .row{grid-column:1/-1}
+}
+</style>
+</head>
+<body>
+<header class="top"><div class="in">
+  <strong>✉️ Meeting Mailer</strong>
+  <nav aria-label="Sections">
+    <a href="#setup">1. Settings &amp; Agenda</a>
+    <a href="#live">2. Live Tracker</a>
+    <a href="#scramble" class="sos">3. Scramble</a>
+    <a href="#schedule">4. Scheduling</a>
+    <a href="#preview">5. Email Preview</a>
+  </nav>
+</div></header>
+
+  <main>
+    <h1 class="page">Meeting Status &amp; Scheduling Emails</h1>
+    <p class="lead">Set up your meeting once, then generate status, emergency and scheduling emails. Everything is saved in this browser.</p>
+    <!-- Section 1 -->
+    <section class="view" id="setup">
+      <h2>1. Global Settings &amp; Agenda</h2>
+      <p class="sub">Defaults used in every generated email.</p>
+      <div class="card">
+        <h3>Meeting defaults</h3>
+        <div class="grid">
+          <div><label for="s-title">Meeting title</label><input id="s-title" placeholder="Weekly Project Sync"></div>
+          <div><label for="s-chair">Chairperson</label><input id="s-chair" placeholder="Jane Doe"></div>
+          <div><label for="s-to">Default To</label><input id="s-to" placeholder="a@x.com, b@x.com"></div>
+          <div><label for="s-cc">Default CC</label><input id="s-cc" placeholder="c@x.com"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 id="ag-form-title">Add agenda item</h3>
+        <div class="grid">
+          <div><label for="a-title">Item number / title</label><input id="a-title" placeholder="1. Budget review"></div>
+          <div><label for="a-speaker">Speaker / presenter</label><input id="a-speaker"></div>
+          <div><label for="a-dur">Duration (min)</label><input id="a-dur" type="number" min="0" value="10"></div>
+          <div><label for="a-to">Item-specific To (optional)</label><input id="a-to" placeholder="blank = default recipients"></div>
+          <div class="full"><label for="a-notes">Brief summary / notes</label><textarea id="a-notes"></textarea></div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn" id="a-save">Add item</button>
+          <button class="btn sec hidden" id="a-cancel">Cancel edit</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between;margin-bottom:10px">
+          <h3 style="margin:0">Agenda <span class="hint" id="ag-total"></span></h3>
+          <div class="row">
+            <button class="btn sec sm" id="ag-reset">Reset progress</button>
+            <button class="btn sec sm" id="ag-clear">Clear agenda</button>
+          </div>
+        </div>
+        <ul class="agenda" id="agenda"></ul>
+      </div>
+    </section>
+
+    <!-- Section 2 -->
+    <section class="view" id="live">
+      <h2>2. Live Progress Tracker</h2>
+      <p class="sub">Advance the meeting and notify stakeholders in one click.</p>
+      <div class="card">
+        <div class="now">
+          <div class="box cur"><h4>Current item</h4><div id="l-cur"></div></div>
+          <div class="box"><h4>Up next</h4><div id="l-next"></div></div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn" id="l-start">Start Next Item</button>
+          <button class="btn sec" id="l-progress">In-Progress Status Update</button>
+          <button class="btn sec" id="l-finish">Finish last item</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Status update details</h3>
+        <div class="grid">
+          <div><label for="l-pct">Progress</label>
+            <select id="l-pct"><option value="">Not specified</option><option>Just started</option><option>About 25% complete</option><option>About halfway</option><option>About 75% complete</option><option>Wrapping up</option></select></div>
+          <div><label for="l-timing">Timing</label>
+            <select id="l-timing"><option>On schedule</option><option>Running slightly behind</option><option>Running behind schedule</option><option>Running ahead of schedule</option></select></div>
+          <div class="full"><label for="l-note">Key points / decisions so far</label><textarea id="l-note" placeholder="One point per line"></textarea></div>
+        </div>
+        <p class="hint">Click “In-Progress Status Update” to (re)generate after editing.</p>
+      </div>
+    </section>
+
+    <!-- Section 3 -->
+    <section class="view" id="scramble">
+      <h2>3. Scramble Quick Actions</h2>
+      <p class="sub">Unexpected change mid-meeting? Pick one and send.</p>
+
+      <div class="card sos-card">
+        <h3>☕ Unscheduled Break</h3>
+        <div class="grid">
+          <div><label for="br-dur">Duration (min)</label>
+            <select id="br-dur"><option>5</option><option selected>10</option><option>15</option><option>30</option><option value="custom">Custom…</option></select></div>
+          <div id="br-custom-w" class="hidden"><label for="br-custom">Custom minutes</label><input id="br-custom" type="number" min="1" value="20"></div>
+          <div><label>Expected return</label><div class="return" id="br-return">–</div></div>
+          <div class="full"><label for="br-note">Note (optional)</label><input id="br-note" placeholder="e.g. Refreshments available"></div>
+        </div>
+        <div class="row" style="margin-top:12px"><button class="btn danger" id="br-go">Generate break notice</button></div>
+      </div>
+
+      <div class="card sos-card">
+        <h3>🛠️ Technical Issues</h3>
+        <div class="chips" id="te-chips" role="group" aria-label="Issue type">
+          <button class="chip" aria-pressed="true">Audio</button><button class="chip" aria-pressed="false">Screen Share</button>
+          <button class="chip" aria-pressed="false">Network</button><button class="chip" aria-pressed="false">Breakout Rooms</button>
+        </div>
+        <div class="grid" style="margin-top:12px">
+          <div><label for="te-min">Expected pause (min)</label><input id="te-min" type="number" min="1" value="5"></div>
+          <div class="full"><label for="te-note">Details / workaround</label><textarea id="te-note" placeholder="e.g. Please mute and stay connected; use chat for questions."></textarea></div>
+        </div>
+        <div class="row" style="margin-top:12px"><button class="btn danger" id="te-go">Generate tech issue notice</button></div>
+      </div>
+
+      <div class="card">
+        <h3>🔀 Agenda Re-order / Item Skipped</h3>
+        <div class="grid">
+          <div><label for="ro-type">Change</label><select id="ro-type"><option value="reorder">Agenda re-ordered</option><option value="skip">Item skipped / deferred</option></select></div>
+          <div id="ro-item-w" class="hidden"><label for="ro-item">Skipped item</label><select id="ro-item"></select></div>
+          <div class="full"><label for="ro-note">Details</label><textarea id="ro-note" placeholder="Reason for the change"></textarea></div>
+        </div>
+        <p class="hint">Re-order items in the Agenda tab first; the notice lists the current order of remaining items.</p>
+        <div class="row" style="margin-top:12px"><button class="btn warn" id="ro-go">Generate agenda change notice</button></div>
+      </div>
+
+      <div class="card">
+        <h3>🏁 Early Adjournment</h3>
+        <div class="grid">
+          <div class="full"><label for="ad-reason">Reason</label><input id="ad-reason" placeholder="All agenda items covered / time constraints"></div>
+          <div class="full"><label for="ad-next">Next steps (one per line)</label><textarea id="ad-next"></textarea></div>
+          <div class="full"><label for="ad-def">Deferred items (one per line)</label><textarea id="ad-def" placeholder="Defaults to remaining pending items"></textarea></div>
+        </div>
+        <div class="row" style="margin-top:12px"><button class="btn warn" id="ad-go">Generate adjournment notice</button></div>
+      </div>
+    </section>
+
+    <!-- Section 4 -->
+    <section class="view" id="schedule">
+      <h2>4. Scheduling &amp; Logistics</h2>
+      <p class="sub">Pre- and post-meeting communications. The preview updates as you type.</p>
+      <div class="card">
+        <label for="sc-type">Email type</label>
+        <select id="sc-type">
+          <option value="invite">New Meeting Invitation</option>
+          <option value="resched">Reschedule / Date Change</option>
+          <option value="cancel">Cancellation Notice</option>
+          <option value="venue">Venue / Link Update</option>
+          <option value="remind">Reminder / Call for Agenda Items</option>
+        </select>
+      </div>
+      <div class="card">
+        <div class="grid" id="sc-fields">
+          <div data-for="invite resched cancel venue remind"><label for="sc-title">Meeting title</label><input id="sc-title" placeholder="Defaults to saved title"></div>
+          <div data-for="invite remind venue"><label for="sc-date">Date</label><input id="sc-date" type="date"></div>
+          <div data-for="invite remind venue"><label for="sc-time">Time</label><input id="sc-time" type="time"></div>
+          <div data-for="invite"><label for="sc-venue">Venue / platform link</label><input id="sc-venue" placeholder="Room 4B or https://teams..."></div>
+          <div data-for="invite" class="full"><label for="sc-agenda">Agenda overview</label><textarea id="sc-agenda" placeholder="Blank = use saved agenda; one item per line"></textarea></div>
+          <div data-for="invite" class="full"><label for="sc-actions">Action items required beforehand</label><textarea id="sc-actions" placeholder="One per line"></textarea></div>
+
+          <div data-for="resched cancel"><label for="sc-od">Previous date</label><input id="sc-od" type="date"></div>
+          <div data-for="resched cancel"><label for="sc-ot">Previous time</label><input id="sc-ot" type="time"></div>
+          <div data-for="resched"><label for="sc-nd">New date</label><input id="sc-nd" type="date"></div>
+          <div data-for="resched"><label for="sc-nt">New time</label><input id="sc-nt" type="time"></div>
+          <div data-for="resched cancel" class="full"><label for="sc-reason">Reason</label><textarea id="sc-reason"></textarea></div>
+          <div data-for="cancel"><label for="sc-ri">Intend to reschedule?</label><select id="sc-ri"><option>Yes</option><option>No</option></select></div>
+
+          <div data-for="venue"><label for="sc-newv">New link / room</label><input id="sc-newv" placeholder="https://zoom.us/... or Room 12"></div>
+          <div data-for="venue"><label for="sc-oldv">Previous link / room (optional)</label><input id="sc-oldv"></div>
+
+          <div data-for="remind"><label for="sc-dead">Agenda item deadline</label><input id="sc-dead" type="datetime-local"></div>
+          <div data-for="remind" class="full"><label for="sc-rn">Additional notes</label><textarea id="sc-rn"></textarea></div>
+        </div>
+      </div>
+    </section>
+
+  <section class="view" id="preview">
+    <h2>5. Email Preview &amp; Dispatch</h2>
+    <p class="sub">The latest generated email appears here. Edit anything before sending.</p>
+    <div class="card">
+      <div class="pv-row"><label for="p-to">To</label><input id="p-to"></div>
+      <div class="pv-row"><label for="p-cc">CC</label><input id="p-cc"></div>
+      <div class="pv-row"><label for="p-subj">Subject</label><input id="p-subj"></div>
+      <label for="p-body">Body</label>
+      <textarea id="p-body" class="pv-body" placeholder="Generate an email from any section…"></textarea>
+      <p class="hint" id="p-warn"></p>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sec sm" id="c-subj">Copy Subject</button>
+        <button class="btn sec sm" id="c-body">Copy Body</button>
+        <button class="btn sec sm" id="c-all">Copy All</button>
+        <button class="btn" id="c-mail">Open in Mail Client</button>
+      </div>
+    </div>
+  </section>
+  </main>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const KEY = 'meetingMailer.v1';
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+let state = { settings:{title:'',chair:'',to:'',cc:''}, agenda:[], ui:{tab:'setup'}, draft:null };
+try {
+  const s = JSON.parse(localStorage.getItem(KEY));
+  if (s) state = { ...state, ...s, settings:{ ...state.settings, ...s.settings }, ui:{ ...state.ui, ...s.ui } };
+} catch {}
+let editingId = null;
+let techType = 'Audio';
+
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
+const toast = msg => { const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toast.h); toast.h=setTimeout(()=>t.classList.remove('show'),1800); };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clockFmt = d => d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+const dateFmt = (d, t) => {
+  if (!d) return '[date TBD]';
+  const dt = new Date(d + 'T' + (t || '00:00'));
+  if (isNaN(dt)) return d;
+  const ds = dt.toLocaleDateString([], {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+  return t ? `${ds} at ${clockFmt(dt)}` : ds;
+};
+const lines = s => (s||'').split('\n').map(x=>x.trim()).filter(Boolean);
+const bullets = (arr, empty) => arr.length ? arr.map(x=>'  • '+x).join('\n') : '  • '+empty;
+const join = parts => parts.filter(p => p !== null && p !== undefined && p !== false).join('\n');
+
+/* ---------- Navigation ---------- */
+const gotoPreview = () => $('preview').scrollIntoView({behavior:'smooth', block:'start'});
+
+/* ---------- Settings ---------- */
+const S = {title:'s-title', chair:'s-chair', to:'s-to', cc:'s-cc'};
+for (const [k,id] of Object.entries(S)) {
+  $(id).value = state.settings[k] || '';
+  $(id).addEventListener('input', () => {
+    state.settings[k] = $(id).value; save();
+    if (state.draft?.live) generateSchedule();
+  });
+}
+const mtitle = () => state.settings.title.trim() || 'Meeting';
+const chair = () => state.settings.chair.trim() || '[Chairperson]';
+const sig = () => `Best regards,\n${chair()}`;
+
+/* ---------- Agenda ---------- */
+const itemLine = it => `${it.title}${it.speaker ? ' ('+it.speaker+')' : ''}${it.duration ? ' – '+it.duration+' min' : ''}`;
+const activeIdx = () => state.agenda.findIndex(i => i.status === 'active');
+const nextIdx = () => { const a = activeIdx(); return state.agenda.findIndex((i, n) => n > a && i.status === 'pending'); };
+const remaining = () => state.agenda.filter(i => i.status === 'pending' || i.status === 'active');
+
+function renderAgenda() {
+  const ul = $('agenda');
+  const total = state.agenda.reduce((s,i)=>s+(+i.duration||0),0);
+  $('ag-total').textContent = state.agenda.length ? `· ${state.agenda.length} items · ${total} min` : '';
+  if (!state.agenda.length) ul.innerHTML = '<li class="empty" style="display:block">No agenda items yet. Add one above.</li>';
+  else ul.innerHTML = state.agenda.map((it, n) => `
+    <li class="${it.status}" data-id="${it.id}">
+      <span class="num">${n+1}</span>
+      <div>
+        <div class="title">${esc(it.title)} <span class="badge b-${it.status}">${it.status}</span></div>
+        <div class="meta">${esc(it.speaker||'—')} · ${esc(it.duration||0)} min${it.to ? ' · To: '+esc(it.to) : ''}</div>
+        ${it.notes ? `<div class="meta">${esc(it.notes)}</div>` : ''}
+      </div>
+      <div class="row">
+        <button class="btn sec sm" data-act="up" ${n===0?'disabled':''} aria-label="Move up">↑</button>
+        <button class="btn sec sm" data-act="down" ${n===state.agenda.length-1?'disabled':''} aria-label="Move down">↓</button>
+        <button class="btn sec sm" data-act="edit">Edit</button>
+        <button class="btn sec sm" data-act="del">Delete</button>
+      </div>
+    </li>`).join('');
+  renderLive(); renderSkipSelect();
+}
+$('agenda').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-act]'); if (!btn) return;
+  const id = btn.closest('li').dataset.id, n = state.agenda.findIndex(i=>i.id===id), a = btn.dataset.act;
+  if (a==='up' && n>0) [state.agenda[n-1], state.agenda[n]] = [state.agenda[n], state.agenda[n-1]];
+  if (a==='down' && n<state.agenda.length-1) [state.agenda[n+1], state.agenda[n]] = [state.agenda[n], state.agenda[n+1]];
+  if (a==='del') { if (!confirm('Delete this agenda item?')) return; state.agenda.splice(n,1); if (editingId===id) resetForm(); }
+  if (a==='edit') {
+    const it = state.agenda[n]; editingId = id;
+    $('a-title').value=it.title; $('a-speaker').value=it.speaker; $('a-dur').value=it.duration; $('a-to').value=it.to; $('a-notes').value=it.notes;
+    $('a-save').textContent='Update item'; $('a-cancel').classList.remove('hidden'); $('ag-form-title').textContent='Edit agenda item';
+    $('a-title').focus();
+  }
+  save(); renderAgenda();
+});
+function resetForm() {
+  editingId = null;
+  ['a-title','a-speaker','a-to','a-notes'].forEach(i=>$(i).value=''); $('a-dur').value=10;
+  $('a-save').textContent='Add item'; $('a-cancel').classList.add('hidden'); $('ag-form-title').textContent='Add agenda item';
+}
+$('a-cancel').onclick = resetForm;
+$('a-save').onclick = () => {
+  const title = $('a-title').value.trim();
+  if (!title) { toast('Enter an item title'); $('a-title').focus(); return; }
+  const data = { title, speaker:$('a-speaker').value.trim(), duration:Math.max(0,+$('a-dur').value||0), to:$('a-to').value.trim(), notes:$('a-notes').value.trim() };
+  if (editingId) Object.assign(state.agenda.find(i=>i.id===editingId), data);
+  else state.agenda.push({ id:uid(), status:'pending', ...data });
+  resetForm(); save(); renderAgenda();
+};
+$('ag-reset').onclick = () => { state.agenda.forEach(i=>i.status='pending'); save(); renderAgenda(); toast('Progress reset'); };
+$('ag-clear').onclick = () => { if (confirm('Remove all agenda items?')) { state.agenda=[]; resetForm(); save(); renderAgenda(); } };
+
+/* ---------- Draft / preview ---------- */
+const recipients = item => ({ to: (item && item.to) ? item.to : state.settings.to, cc: state.settings.cc });
+function setDraft(d, live) {
+  state.draft = { to:d.to||'', cc:d.cc||'', subject:d.subject, body:d.body, live:!!live };
+  save(); renderPreview();
+  if (!live) gotoPreview();
+}
+function renderPreview() {
+  const d = state.draft || {to:'',cc:'',subject:'',body:''};
+  $('p-to').value = d.to; $('p-cc').value = d.cc; $('p-subj').value = d.subject; $('p-body').value = d.body;
+  updateWarn();
+}
+['p-to','p-cc','p-subj','p-body'].forEach(id => $(id).addEventListener('input', () => {
+  state.draft = { to:$('p-to').value, cc:$('p-cc').value, subject:$('p-subj').value, body:$('p-body').value, live:false };
+  save(); updateWarn();
+}));
+const mailto = () => {
+  const d = state.draft || {};
+  const list = s => (s||'').split(/[;,]/).map(x=>x.trim()).filter(Boolean).map(encodeURIComponent).join(',');
+  const q = [];
+  if (list(d.cc)) q.push('cc='+list(d.cc));
+  q.push('subject='+encodeURIComponent(d.subject||''), 'body='+encodeURIComponent((d.body||'').replace(/\r?\n/g, '\r\n')));
+  return `mailto:${list(d.to)}?${q.join('&')}`;
+};
+function updateWarn() { $('p-warn').textContent = mailto().length > 1900 ? '⚠ Long email: some mail clients truncate mailto links. Use Copy Body instead.' : ''; }
+async function copy(text, label) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t=document.createElement('textarea'); t.value=text; document.body.appendChild(t); t.select(); try{document.execCommand('copy')}catch{} t.remove(); }
+  toast(label + ' copied');
+}
+const need = () => { if (!state.draft || !(state.draft.subject || state.draft.body)) { toast('Nothing to copy yet'); return false; } return true; };
+$('c-subj').onclick = () => need() && copy(state.draft.subject, 'Subject');
+$('c-body').onclick = () => need() && copy(state.draft.body, 'Body');
+$('c-all').onclick = () => need() && copy(`To: ${state.draft.to}\nCC: ${state.draft.cc}\nSubject: ${state.draft.subject}\n\n${state.draft.body}`, 'Email');
+$('c-mail').onclick = () => { if (need()) window.location.href = mailto(); };
+
+/* ---------- Live tracker ---------- */
+function renderLive() {
+  const a = state.agenda[activeIdx()], n = state.agenda[nextIdx()];
+  const box = it => it ? `<div class="title">${esc(it.title)} <span class="badge b-${it.status}">${it.status}</span></div><div class="meta">${esc(it.speaker||'—')} · ${esc(it.duration||0)} min</div>` : null;
+  $('l-cur').innerHTML = box(a) || '<span class="empty">No item in progress</span>';
+  $('l-next').innerHTML = box(n) || '<span class="empty">No remaining items</span>';
+  $('l-start').disabled = !n;
+  $('l-start').textContent = a ? 'Start Next Item' : 'Start First Item';
+  $('l-progress').disabled = !a;
+  $('l-finish').disabled = !a || !!n;
+}
+$('l-start').onclick = () => {
+  const ai = activeIdx(), ni = nextIdx(); if (ni < 0) return;
+  const prev = state.agenda[ai], next = state.agenda[ni];
+  if (prev) prev.status = 'done';
+  next.status = 'active';
+  const left = state.agenda.filter(i => i.status === 'pending').length;
+  const body = join([
+    'Hello all,', '',
+    prev ? `We have concluded "${prev.title}"${prev.speaker ? ' ('+prev.speaker+')' : ''} and are now moving to the next item.` : `${mtitle()} is now under way.`, '',
+    'NOW STARTING:',
+    `  • Item: ${next.title}`,
+    next.speaker && `  • Presenter: ${next.speaker}`,
+    next.duration && `  • Allotted time: ${next.duration} min`,
+    next.notes && `  • Summary: ${next.notes}`,
+    `  • Started at: ${clockFmt(new Date())}`, '',
+    left ? `Items remaining after this one: ${left}.` : 'This is the final agenda item.', '',
+    sig()
+  ]);
+  setDraft({ ...recipients(next), subject: prev ? `[${mtitle()}] Concluded: ${prev.title} → Now Starting: ${next.title}` : `[${mtitle()}] Now Starting: ${next.title}`, body });
+  save(); renderAgenda();
+};
+$('l-finish').onclick = () => { const a = state.agenda[activeIdx()]; if (a) { a.status='done'; save(); renderAgenda(); toast('Item marked done'); } };
+$('l-progress').onclick = () => {
+  const cur = state.agenda[activeIdx()]; if (!cur) return;
+  const nxt = state.agenda[nextIdx()], pts = lines($('l-note').value);
+  const body = join([
+    'Hello all,', '',
+    `Quick progress update from ${mtitle()}:`, '',
+    `  • Current item: ${cur.title}${cur.speaker ? ' ('+cur.speaker+')' : ''}`,
+    $('l-pct').value && `  • Progress: ${$('l-pct').value}`,
+    `  • Timing: ${$('l-timing').value}`,
+    `  • Time now: ${clockFmt(new Date())}`,
+    `  • Up next: ${nxt ? nxt.title : 'no further items'}`,
+    pts.length && '', pts.length && 'Key points so far:', pts.length && bullets(pts), '',
+    sig()
+  ]);
+  setDraft({ ...recipients(cur), subject:`[${mtitle()}] Status Update – ${cur.title}`, body });
+};
+
+/* ---------- Scramble ---------- */
+const breakMins = () => $('br-dur').value === 'custom' ? Math.max(1, +$('br-custom').value || 1) : +$('br-dur').value;
+const retTime = m => clockFmt(new Date(Date.now() + m*60000));
+function updateBreakReturn() { $('br-return').textContent = retTime(breakMins()); }
+$('br-dur').onchange = () => { $('br-custom-w').classList.toggle('hidden', $('br-dur').value !== 'custom'); updateBreakReturn(); };
+$('br-custom').oninput = updateBreakReturn;
+setInterval(updateBreakReturn, 15000);
+$('br-go').onclick = () => {
+  const m = breakMins(), back = retTime(m), cur = state.agenda[activeIdx()], note = $('br-note').value.trim();
+  $('br-return').textContent = back;
+  const body = join([
+    'Hello all,', '',
+    `We are taking an unscheduled ${m}-minute break.`, '',
+    `  • Break started: ${clockFmt(new Date())}`,
+    `  • Expected return: ${back}`,
+    cur && `  • Resuming with: ${cur.title}`,
+    note && `  • Note: ${note}`, '',
+    `Please rejoin promptly at ${back}.`, '',
+    sig()
+  ]);
+  setDraft({ ...recipients(), subject:`[${mtitle()}] ${m}-Minute Break – Resuming at ${back}`, body });
+};
+$('te-chips').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  techType = c.textContent;
+  document.querySelectorAll('#te-chips .chip').forEach(x => x.setAttribute('aria-pressed', String(x === c)));
+});
+$('te-go').onclick = () => {
+  const m = Math.max(1, +$('te-min').value || 5), back = retTime(m), note = $('te-note').value.trim();
+  const body = join([
+    'Hello all,', '',
+    'We are experiencing a technical issue and the meeting is temporarily paused.', '',
+    `  • Issue: ${techType}`,
+    `  • Paused at: ${clockFmt(new Date())}`,
+    `  • Estimated resume: ${back} (~${m} min)`,
+    note && `  • Details: ${note}`, '',
+    'Please stay connected where possible. We will confirm as soon as we resume.', '',
+    sig()
+  ]);
+  setDraft({ ...recipients(), subject:`[${mtitle()}] Paused – ${techType} Issue (Est. Resume ${back})`, body });
+};
+function renderSkipSelect() {
+  const sel = $('ro-item'), prev = sel.value;
+  sel.innerHTML = state.agenda.map(i => `<option value="${i.id}">${esc(i.title)}</option>`).join('');
+  if (prev) sel.value = prev;
+}
+$('ro-type').onchange = () => $('ro-item-w').classList.toggle('hidden', $('ro-type').value !== 'skip');
+$('ro-go').onclick = () => {
+  const note = $('ro-note').value.trim();
+  let subject, body;
+  if ($('ro-type').value === 'skip') {
+    const it = state.agenda.find(i => i.id === $('ro-item').value);
+    if (!it) { toast('Select an item to skip'); return; }
+    if (it.status !== 'done') it.status = 'skipped';
+    save(); renderAgenda();
+    subject = `[${mtitle()}] Agenda Update – "${it.title}" Skipped`;
+    body = join(['Hello all,', '', 'Please note the following agenda change:', '',
+      `  • Skipped / deferred: ${it.title}`, note && `  • Reason: ${note}`, '',
+      'Remaining agenda:', bullets(remaining().map(itemLine), 'None'), '', sig()]);
+  } else {
+    subject = `[${mtitle()}] Agenda Re-ordered`;
+    body = join(['Hello all,', '', 'The agenda order has been updated.', '',
+      note && `Details: ${note}`, note && '',
+      'Current order of remaining items:',
+      remaining().length ? remaining().map((i,n) => `  ${n+1}. ${itemLine(i)}`).join('\n') : '  (none)', '', sig()]);
+  }
+  setDraft({ ...recipients(), subject, body });
+};
+$('ad-go').onclick = () => {
+  const reason = $('ad-reason').value.trim(), next = lines($('ad-next').value), def = lines($('ad-def').value);
+  const deferred = def.length ? def : remaining().map(i => i.title);
+  const body = join([
+    'Hello all,', '',
+    `${mtitle()} is being adjourned early${reason ? ' – '+reason : ''}. Thank you for your time and contributions.`, '',
+    'Next steps:', bullets(next, 'Follow-up details to be shared separately'), '',
+    'Deferred items:', bullets(deferred, 'None'), '',
+    sig()
+  ]);
+  setDraft({ ...recipients(), subject:`[${mtitle()}] Early Adjournment – Next Steps`, body });
+};
+
+/* ---------- Scheduling ---------- */
+const SC = ['title','date','time','venue','agenda','actions','od','ot','nd','nt','reason','ri','newv','oldv','dead','rn'];
+const v = k => $('sc-'+k).value.trim();
+function syncScFields() {
+  const t = $('sc-type').value;
+  document.querySelectorAll('#sc-fields [data-for]').forEach(el => el.classList.toggle('hidden', !el.dataset.for.split(' ').includes(t)));
+}
+function generateSchedule() {
+  const t = $('sc-type').value, title = v('title') || mtitle();
+  const ag = v('agenda') ? lines(v('agenda')) : state.agenda.map(itemLine);
+  const dead = v('dead') ? new Date(v('dead')).toLocaleString([], {dateStyle:'full', timeStyle:'short'}) : '[deadline TBD]';
+  let subject, body;
+  switch (t) {
+    case 'invite':
+      subject = `Invitation: ${title} – ${dateFmt(v('date'))}`;
+      body = join(['Hello all,', '', `You are invited to ${title}.`, '',
+        `  • Date & time: ${dateFmt(v('date'), v('time'))}`, `  • Venue / link: ${v('venue') || '[to be confirmed]'}`, `  • Chair: ${chair()}`, '',
+        'Agenda overview:', bullets(ag, 'To be circulated'), '',
+        'Please complete before the meeting:', bullets(lines(v('actions')), 'No pre-work required'), '',
+        'Kindly confirm your attendance.', '', sig()]); break;
+    case 'resched':
+      subject = `Rescheduled: ${title} – now ${dateFmt(v('nd'))}`;
+      body = join(['Hello all,', '', `${title} has been rescheduled.`, '',
+        `  • Previous: ${dateFmt(v('od'), v('ot'))}`, `  • New: ${dateFmt(v('nd'), v('nt'))}`, v('reason') && `  • Reason: ${v('reason')}`, '',
+        'Please update your calendars. Apologies for any inconvenience.', '', sig()]); break;
+    case 'cancel':
+      subject = `Cancelled: ${title} – ${dateFmt(v('od'))}`;
+      body = join(['Hello all,', '', `${title} scheduled for ${dateFmt(v('od'), v('ot'))} has been cancelled.`, '',
+        v('reason') && `  • Reason: ${v('reason')}`, `  • Will be rescheduled: ${v('ri')}`, '',
+        (v('ri') === 'Yes' ? 'A new invitation will follow shortly.' : 'No new date is planned at this time.') + ' Thank you for your understanding.', '', sig()]); break;
+    case 'venue':
+      subject = `Venue/Link Update: ${title}${v('date') ? ' – '+dateFmt(v('date')) : ''}`;
+      body = join(['Hello all,', '', `The venue / link for ${title}${v('date') ? ' on '+dateFmt(v('date'), v('time')) : ''} has changed.`, '',
+        `  • New location / link: ${v('newv') || '[TBD]'}`, v('oldv') && `  • Replaces: ${v('oldv')}`, '',
+        'Please use the updated details; the previous ones will no longer work.', '', sig()]); break;
+    default:
+      subject = `Reminder & Call for Agenda Items: ${title}${v('date') ? ' – '+dateFmt(v('date')) : ''}`;
+      body = join(['Hello all,', '', `This is a reminder about ${title}${v('date') ? ' on '+dateFmt(v('date'), v('time')) : ''}.`, '',
+        `  • Agenda item submission deadline: ${dead}`, `  • Send items to: ${chair()}`, '',
+        state.agenda.length && 'Current agenda:', state.agenda.length && bullets(state.agenda.map(itemLine)), state.agenda.length && '',
+        v('rn') && v('rn'), v('rn') && '',
+        'Please submit your topics by the deadline.', '', sig()]);
+  }
+  setDraft({ ...recipients(), subject, body }, true);
+}
+$('sc-type').onchange = () => { syncScFields(); generateSchedule(); };
+SC.forEach(k => { $('sc-'+k).addEventListener('input', generateSchedule); $('sc-'+k).addEventListener('change', generateSchedule); });
+
+/* ---------- Init ---------- */
+syncScFields(); updateBreakReturn(); renderAgenda(); renderPreview();
+})();
+</script>
+</body>
+</html>
