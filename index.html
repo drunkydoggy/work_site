@@ -520,8 +520,8 @@ ${SIG}` },
 ];
 
 /* ---------- State ---------- */
-const KINDS = [['item', 'Item'], ['other', 'Other'], ['break', 'Break'], ['lunch', 'Lunch']];
-const KIND_ICON = { break:'☕ ', lunch:'🍽️ ' };
+const KINDS = [['item', 'Item'], ['other', 'Other'], ['break', 'Break'], ['lunch', 'Lunch'], ['incamera', 'In-camera (no email)']];
+const KIND_ICON = { break:'☕ ', lunch:'🍽️ ', incamera:'🔒 ' };
 const blankItem = (o = {}) => ({ id:uid(), title:'', speaker:'', duration:10, notes:'', to:'', subject:'', body:'', status:'pending', startedAt:null, ...o });
 const newMeeting = (name, live = false) => ({ id:uid(), name, chair:'', to:'', cc:'', live, agenda:[] });
 const LIVE_MEETINGS = ['FCM', 'TCM', 'BCM'];
@@ -654,8 +654,7 @@ function resumeVals(ctx) {
   const a = M().agenda, cur = ctx.item || active();
   let tgt;
   if (cur) {
-    const after = a.slice(a.findIndex(i => i.id === cur.id) + 1).find(i => i.status === 'pending');
-    tgt = (cur.kind === 'break' || cur.kind === 'lunch' || (ctx.tpl && ctx.tpl.id === 'endofday')) ? after : cur;
+    const after = a.slice(a.findIndex(i => i.id === cur.id) + 1).find(i => i.status === 'pending' && i.kind !== 'incamera'); (cur.kind === 'break' || cur.kind === 'lunch' || (ctx.tpl && ctx.tpl.id === 'endofday')) ? after : cur;
   } else tgt = a.find(i => i.status === 'pending');
   if (!tgt) return {};
   const isItem = (tgt.kind || 'item') === 'item';
@@ -1173,6 +1172,7 @@ function startItem(id) {
   const prev = active();
   if (prev && prev !== it) prev.status = 'done';
   it.status = 'active'; it.startedAt = Date.now(); save(); renderRun();
+  if (it.kind === 'incamera') { toast('In-camera: no email'); return; }
   if (it.kind === 'break') return openEmail('break', { item:it, vals:{ minutes:String(it.duration || 10) } });
   if (it.kind === 'lunch') return openEmail('lunch', { item:it });
   openEmail('start', { item:it, prev: prev && prev !== it ? prev : null });
@@ -1424,7 +1424,7 @@ async function parseDocx(file) {
         continue;
       }
       if (!title && !notes) continue;
-      const kind = /^(break|pause)\b/i.test(title) ? 'break' : /lunch|d[îi]ner/i.test(title) ? 'lunch' : /^item\s*\d/i.test(title) ? 'item' : 'other';
+      const kind = /^(break|pause)\b/i.test(title) ? 'break' : /lunch|d[îi]ner/i.test(title) ? 'lunch' : /in[- ]camera|huis clos/i.test(title) ? 'incamera' : /^item\s*\d/i.test(title) ? 'item' : 'other';
       last = { inc:true, day, section, time, duration: mins.reduce((a, b) => a + b, 0), kind, title: title.replace(/^item\s*/i, ''), notes, speaker: leads.map(x => x.t).join(', ') };
       rows.push(last);
     }
