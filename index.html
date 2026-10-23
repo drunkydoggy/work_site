@@ -804,11 +804,12 @@ function openEmail(tpl, opts = {}) {
 const idb = () => new Promise((res, rej) => { const r = indexedDB.open('meetingMailer.files', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 const idbDo = async (mode, fn) => { const db = await idb(); return new Promise((res, rej) => { const q = fn(db.transaction('f', mode).objectStore('f')); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); };
 const openList = () => state.open || (state.open = []);
+const itemNumFromName = name => { const m = name.match(/^\s*(?:item|article|point)?[\s._-]*(\d+(?:\.\d+)*)/i); return m ? m[1] : ''; };
 function parseItems(text) {
   return text.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const m = l.match(/^(\S+)\s*[-–:]?\s*(.*)$/); return { num:m[1], title:m[2] }; });
 }
 function trackHTML() {
-  if (dlg.track) return `<details class="trk-d"${dlg.itemsText ? ' open' : ''}><summary>Add items for Approval (optional)</summary>
+  if (dlg.track) return `<details class="trk-d"${dlg.itemsText ? ' open' : ''}><summary>Items (optional – taken from file names like “Item 1 Memo” if left empty)</summary>
     <textarea id="trk-items" data-trk-items rows="3" aria-label="Items in this e-M" placeholder="One per line, e.g. 3.1 Item title">${esc(dlg.itemsText)}</textarea></details>`;
   if (dlg.rec) return `<div><label>Open e-M</label>
     <span class="hint">${esc(dlg.rec.date || 'No date')} · ${dlg.rec.items.length} item(s) · ${dlg.rec.files.length} document(s) re-attached below</span>
@@ -824,7 +825,11 @@ async function trackSave() {
   const m = M(), date = dlg.vals.meeting_date || '';
   let rec = openList().find(r => r.meetingId === m.id && r.date === date);
   if (!rec) { rec = { id:uid(), meetingId:m.id, date, items:[], files:[], created:Date.now() }; openList().push(rec); }
-  const items = parseItems(dlg.itemsText); if (items.length) rec.items = items;
+  const items = parseItems(dlg.itemsText), seen = new Set(items.map(i => i.num));
+  files.forEach(f => { const n = itemNumFromName(f.name); if (n && !seen.has(n)) { seen.add(n); items.push({ num:n, title:'' }); } });
+  const cmp = (x, y) => x.num.localeCompare(y.num, undefined, { numeric:true });
+  rec.items.forEach(i => { if (!seen.has(i.num)) { seen.add(i.num); items.push(i); } });
+  rec.items = items.sort(cmp);
   for (const f of files) {
     if (rec.files.some(x => x.name === f.name && x.size === f.size)) continue;
     const key = uid() + uid();
