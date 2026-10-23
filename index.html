@@ -121,6 +121,11 @@ dialog::backdrop{background:rgba(10,15,30,.55)}
 .pv-row label{margin:0}
 .pv-body{min-height:260px;font-family:Arial,Helvetica,sans-serif;font-size:12pt;line-height:1.5}
 #mem-box{margin-bottom:14px}
+.drop{border:2px dashed #9bb7d4;background:#f4f9fe;padding:14px;text-align:center;margin:10px 0;cursor:pointer;font-size:14px}
+.drop.over{background:#dcecfb;border-color:var(--brand)}
+.files{list-style:none;margin:8px 0 0;padding:0;text-align:left}
+.files li{display:flex;gap:8px;align-items:center;padding:4px 0;border-top:1px solid #dde}
+.files li span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mem-t td,.mem-t th{padding:6px 6px;font-size:13px}
 .mem-t input[type=radio],.mem-t input[type=checkbox]{width:18px;height:18px;margin:0}
 .mem-row{display:grid;grid-template-columns:1fr 240px auto;gap:8px;margin-bottom:6px}
@@ -273,8 +278,14 @@ code{background:#eef1f8;padding:1px 5px;border-radius:5px;font-size:13px}
   <label for="e-body">Body</label>
   <textarea id="e-body" class="pv-body"></textarea>
   <p class="hint" id="e-warn"></p>
+  <div id="e-drop" class="drop" tabindex="0" role="button" aria-label="Attach documents">
+    📎 <b>Drag and drop documents here</b> or click to browse
+    <input type="file" id="e-file" multiple hidden>
+    <ul id="e-files" class="files"></ul>
+  </div>
   <div class="dlg-actions row">
     <button class="btn" id="e-mail">Open in Mail Client</button>
+    <button class="btn hidden" id="e-eml">📎 Open draft with attachments</button>
     <button class="btn sec" id="e-all">Copy All</button>
     <button class="btn sec" id="e-subjcopy">Copy Subject</button>
     <button class="btn sec" id="e-bodycopy">Copy Body</button>
@@ -741,6 +752,7 @@ function openEmail(tpl, opts = {}) {
   fields.forEach(f => vals[f.key] = defaultFor(f, ctx));
   Object.assign(vals, opts.vals || {});
   dlg = { tpl, ctx, subjText, bodyText, fields, vals };
+  files = []; renderFiles();
   $('e-title').textContent = `${tpl.icon || '✉️'} ${tpl.name}`;
   $('e-to').value = (custom && item.to) ? item.to : m.to;
   $('e-cc').value = m.cc;
@@ -853,6 +865,52 @@ $('e-subjcopy').onclick = () => copy($('e-subj').value, 'Subject');
 $('e-bodycopy').onclick = () => copy($('e-body').value, 'Body', bodyHtml($('e-body').value));
 $('e-all').onclick = () => copy(`To: ${$('e-to').value}\nCC: ${$('e-cc').value}\nSubject: ${$('e-subj').value}\n\n${$('e-body').value}`, 'Email', `<p style="font-family:Arial;font-size:12pt;margin:0">To: ${esc($('e-to').value)}<br>CC: ${esc($('e-cc').value)}<br>Subject: ${esc($('e-subj').value)}</p><br>${bodyHtml($('e-body').value)}`);
 $('e-mail').onclick = () => { window.location.href = mailto(); };
+let files = [];
+const fmtSize = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+function renderFiles() {
+  $('e-files').innerHTML = files.map((f, i) => `<li><span>📄 ${esc(f.name)} (${fmtSize(f.size)})</span><button class="btn sec sm" data-rm="${i}" aria-label="Remove ${esc(f.name)}">✕</button></li>`).join('');
+  $('e-eml').classList.toggle('hidden', !files.length);
+}
+function addFiles(list) {
+  [...list].forEach(f => { if (!files.some(x => x.name === f.name && x.size === f.size)) files.push(f); });
+  renderFiles();
+}
+const drop = $('e-drop');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+drop.addEventListener('click', e => { if (!e.target.closest('[data-rm]') && e.target !== $('e-file')) $('e-file').click(); });
+drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('e-file').click(); } });
+$('e-file').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
+$('e-files').addEventListener('click', e => { const b = e.target.closest('[data-rm]'); if (b) { e.stopPropagation(); files.splice(+b.dataset.rm, 1); renderFiles(); } });
+const b64 = buf => {
+  const u = new Uint8Array(buf); let s = '';
+  for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  return btoa(s).replace(/.{1,76}/g, '$&\r\n');
+};
+const utf8b64 = s => b64(new TextEncoder().encode(s).buffer);
+const encWord = s => (s.match(/[\s\S]{1,24}/gu) || ['']).map(c => `=?UTF-8?B?${utf8b64(c).replace(/\r\n/g, '')}?=`).join('\r\n ');
+$('e-eml').onclick = async () => {
+  const bd = '=_mm_' + uid() + uid();
+  const hdr = a => a.value.trim() ? a.value.trim().replace(/\s*;\s*/g, ', ') : '';
+  const lines = ['X-Unsent: 1'];
+  if (hdr($('e-to'))) lines.push('To: ' + hdr($('e-to')));
+  if (hdr($('e-cc'))) lines.push('Cc: ' + hdr($('e-cc')));
+  lines.push('Subject: ' + encWord($('e-subj').value), 'MIME-Version: 1.0', `Content-Type: multipart/mixed; boundary="${bd}"`, '',
+    `--${bd}`, 'Content-Type: text/html; charset=utf-8', 'Content-Transfer-Encoding: base64', '', utf8b64(bodyHtml($('e-body').value)));
+  for (const f of files) {
+    const name = encWord(f.name);
+    lines.push(`--${bd}`, `Content-Type: ${f.type || 'application/octet-stream'}; name="${name}"`, 'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${name}"`, '', b64(await f.arrayBuffer()));
+  }
+  lines.push(`--${bd}--`, '');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'message/rfc822' }));
+  a.download = ($('e-subj').value.replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) || 'email') + '.eml';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast('Draft downloaded — open it to send with attachments');
+};
 $('e-close').onclick = () => $('dlg').close();
 $('dlg').addEventListener('click', e => { if (e.target === $('dlg')) $('dlg').close(); });
 $('e-edit').addEventListener('click', () => {
