@@ -516,7 +516,7 @@ ${SIG}` },
 const KINDS = [['item', 'Item'], ['other', 'Other'], ['break', 'Break'], ['lunch', 'Lunch'], ['incamera', 'In-camera (no email)']];
 const KIND_ICON = { break:'☕ ', lunch:'🍽️ ', incamera:'🔒 ' };
 const blankItem = (o = {}) => ({ id:uid(), title:'', speaker:'', duration:10, notes:'', to:'', subject:'', body:'', status:'pending', startedAt:null, ...o });
-const newMeeting = (name, live = false) => ({ id:uid(), name, chair:'', to:'', cc:'', live, agenda:[] });
+const newMeeting = (name, live = false) => ({ id:uid(), name, chair:'', to:'', cc:'', live, endedAt:null, agenda:[] });
 const LIVE_MEETINGS = ['FCM', 'TCM', 'BCM'];
 const OTHER_MEETINGS = ['BBFR', 'BBFR e-M', 'BCM e-M', 'BCR', 'BCSC', 'CASL', 'CASL e-M', 'CMC', 'FCM e-M', 'FOA', 'FOA e-M', 'Panel', 'Panel e-M', 'Panel e-M APP/NA', 'Panel e-M Completeness', 'Panel e-M RoD', 'Panel e-M RoD Following FCM', 'Panel Nominations', 'Petition', 'PPRP', 'PPRP e-M'];
 function seedMeetings(s) {
@@ -1107,7 +1107,7 @@ $('meeting-select').addEventListener('change', e => {
   state.current = e.target.value; state.undo = null; save(); renderAll();
 });
 function createMeeting(src) {
-  const m = src ? { ...JSON.parse(JSON.stringify(src)), id:uid(), name:src.name + ' (copy)' } : newMeeting('New meeting');
+  const m = src ? { ...JSON.parse(JSON.stringify(src)), id:uid(), name:src.name + ' (copy)', endedAt:null } : newMeeting('New meeting');
   if (src) m.agenda = m.agenda.map(i => ({ ...i, id:uid(), status:'pending', startedAt:null }));
   state.meetings.push(m); state.current = m.id; state.undo = null; save();
   location.hash = '#setup'; renderAll();
@@ -1132,7 +1132,7 @@ function elapsedText(a) {
   return `Started ${clock(new Date(a.startedAt))} · ${mins} min elapsed${a.duration ? ' of ' + a.duration : ''}`;
 }
 function renderRun() {
-  const m = M(), a = active(), n = nextAfter(a);
+  const m = M(), a = active(), n = nextAfter(a), pending = m.agenda.some(i => i.status === 'pending');
   $('run-title').textContent = m.name || 'Run meeting';
   document.querySelectorAll('#page-run .live-only').forEach(e => e.classList.toggle('hidden', !m.live));
   $('run-note').classList.toggle('hidden', !!m.live || isEM(m));
@@ -1143,11 +1143,14 @@ function renderRun() {
   const box = (it, extra) => it ? `<div class="t">${esc(it.title)}</div><div class="meta">${esc(it.speaker || '—')} · ${esc(it.duration || 0)} min</div>${extra || ''}` : '<span class="empty">None</span>';
   const undo = state.undo && state.undo.meeting === m.id;
   const label = !n ? 'No more items to start' : a ? `▶ Next item starting: ${esc(n.title)}` : `▶ Start first item: ${esc(n.title)}`;
-  $('run-status').innerHTML = !m.agenda.length
+  $('run-status').innerHTML = m.endedAt
+    ? `<div class="row"><div><b>Meeting ended</b><div class="hint">Start a new meeting to reset the agenda for the next session.</div></div><button class="btn ok" data-act="new-meeting">▶ Start new meeting</button></div>`
+    : !m.agenda.length
     ? `<p class="empty" style="margin:0">No agenda yet. <a href="#setup">Add agenda items in Setup</a>. You can still use the quick actions below.</p>`
     : `<div class="now"><div class="box cur"><h4>Now</h4>${box(a, `<div class="meta" id="elapsed">${esc(elapsedText(a))}</div>`)}</div><div class="box"><h4>Up next</h4>${box(n)}</div></div>
        <div class="row"><button class="btn big" data-act="next" ${n ? '' : 'disabled'}>${label}</button>
        ${a && !n ? '<button class="btn sec" data-act="finish">✔ Finish current item</button>' : ''}
+       ${!pending && (a || m.agenda.length) ? '<button class="btn ok" data-act="end-meeting">🏁 End meeting</button>' : ''}
        ${undo ? '<button class="btn sec" data-act="undo">↩ Undo last change</button>' : ''}</div>`;
   const tb = t => `<button class="qbtn${t.urgent ? ' urgent' : ''}" data-tpl="${t.id}"><span class="ic">${esc(t.icon || '✉️')}</span>${esc(t.name)}</button>`;
   const sb = t => `<button class="qbtn small" data-tpl="${t.id}"><span class="ic">${esc(t.icon || '✉️')}</span>${esc(t.name)}</button>`;
@@ -1163,15 +1166,15 @@ function renderRun() {
       <td>${esc(it.speaker || '—')}</td><td>${esc(it.duration || 0)} min</td>
       <td><span class="badge b-${it.status}">${it.status}</span></td>
       <td><span class="acts">
-        ${it.status === 'pending' ? '<button class="btn sm" data-act="start">▶ Start</button><button class="btn sec sm" data-act="skip">Skip</button>' : ''}
-        ${it.status === 'active' ? '<button class="btn ok sm" data-act="done">✔ Done</button>' : ''}
-        ${it.status !== 'pending' ? '<button class="btn sec sm" data-act="reopen">↺ Reopen</button>' : ''}
+        ${!m.endedAt && it.status === 'pending' ? '<button class="btn sm" data-act="start">▶ Start</button><button class="btn sec sm" data-act="skip">Skip</button>' : ''}
+        ${!m.endedAt && it.status === 'active' ? '<button class="btn ok sm" data-act="done">✔ Done</button>' : ''}
+        ${!m.endedAt && it.status !== 'pending' ? '<button class="btn sec sm" data-act="reopen">↺ Reopen</button>' : ''}
       </span></td></tr>`).join('') : '<tr class="empty-row"><td colspan="6">No agenda items.</td></tr>';
 }
 setInterval(() => { const el = $('elapsed'); if (el) el.textContent = elapsedText(active()); }, 30000);
 
 function startItem(id) {
-  const it = M().agenda.find(i => i.id === id); if (!it) return;
+  const it = M().agenda.find(i => i.id === id); if (!it || M().endedAt) return;
   snapshot();
   const prev = active();
   if (prev && prev !== it) prev.status = 'done';
@@ -1192,6 +1195,16 @@ $('page-run').addEventListener('click', e => {
   }
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act, m = M(), id = b.closest('tr') && b.closest('tr').dataset.id, it = id && m.agenda.find(i => i.id === id);
+  if (act === 'new-meeting') {
+    m.agenda.forEach(i => { i.status = 'pending'; i.startedAt = null; });
+    m.endedAt = null; state.undo = null; save(); renderRun(); toast('New meeting started'); return;
+  }
+  if (act === 'end-meeting') {
+    if (m.agenda.some(i => i.status === 'pending')) { toast('Finish or skip all agenda items first'); return; }
+    if (!confirm(`End "${m.name}" and prepare it for the next meeting?`)) return;
+    snapshot(); if (active()) { active().status = 'done'; active().startedAt = null; }
+    m.endedAt = Date.now(); save(); renderRun(); return;
+  }
   if (act === 'next') { const n = nextAfter(active()); if (n) startItem(n.id); return; }
   if (act === 'start') return startItem(id);
   if (act === 'finish') { snapshot(); const a = active(); if (a) a.status = 'done'; }
@@ -1199,7 +1212,7 @@ $('page-run').addEventListener('click', e => {
   if (act === 'reopen' && it) { snapshot(); it.status = 'pending'; it.startedAt = null; }
   if (act === 'skip' && it) { snapshot(); it.status = 'skipped'; save(); renderRun(); openEmail('skip', { vals:{ skipped_item:it.title } }); return; }
   if (act === 'undo' && state.undo) { state.undo.snap.forEach(s => { const i = m.agenda.find(x => x.id === s.id); if (i) { i.status = s.status; i.startedAt = s.startedAt; } }); state.undo = null; }
-  if (act === 'reset-all') { if (!confirm('Reset all items to pending?')) return; snapshot(); m.agenda.forEach(i => { i.status = 'pending'; i.startedAt = null; }); }
+  if (act === 'reset-all') { if (!confirm('Reset all items to pending?')) return; snapshot(); m.agenda.forEach(i => { i.status = 'pending'; i.startedAt = null; }); m.endedAt = null; }
   save(); renderRun();
 });
 
