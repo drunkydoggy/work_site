@@ -204,7 +204,7 @@ code{background:#eef1f8;padding:1px 5px;border-radius:5px;font-size:13px}
     <details class="panel" open>
       <summary>Meeting details</summary>
       <div class="body">
-        <p class="note">Each meeting keeps its own recipients and agenda. Changes save automatically.</p>
+        <p class="note">Each meeting keeps its own recipients and agenda. Changes save automatically. End meeting clears the agenda and opens Word agenda upload for the next session, keeping meeting details and email wording.</p>
         <div class="grid">
           <div><label for="m-name">Meeting name</label><input id="m-name" data-m="name"></div>
           <div><label for="m-chair">Chairperson</label><input id="m-chair" data-m="chair"></div>
@@ -1144,7 +1144,7 @@ function renderRun() {
   const undo = state.undo && state.undo.meeting === m.id;
   const label = !n ? 'No more items to start' : a ? `▶ Next item starting: ${esc(n.title)}` : `▶ Start first item: ${esc(n.title)}`;
   $('run-status').innerHTML = m.endedAt
-    ? `<div class="row"><div><b>Meeting ended</b><div class="hint">Start a new meeting to reset the agenda for the next session.</div></div><button class="btn ok" data-act="new-meeting">▶ Start new meeting</button></div>`
+    ? `<div class="row"><div><b>Meeting ended</b><div class="hint">Clear the old agenda and upload agendas for the next session. Meeting details and email wording are kept.</div></div><button class="btn ok" data-act="new-meeting">▶ Prepare next meeting</button></div>`
     : !m.agenda.length
     ? `<p class="empty" style="margin:0">No agenda yet. <a href="#setup">Add agenda items in Setup</a>. You can still use the quick actions below.</p>`
     : `<div class="now"><div class="box cur"><h4>Now</h4>${box(a, `<div class="meta" id="elapsed">${esc(elapsedText(a))}</div>`)}</div><div class="box"><h4>Up next</h4>${box(n)}</div></div>
@@ -1184,6 +1184,25 @@ function startItem(id) {
   if (it.kind === 'lunch') return openEmail('lunch', { item:it });
   openEmail('start', { item:it, prev: prev && prev !== it ? prev : null });
 }
+function prepareNextMeeting() {
+  const m = M();
+  m.agenda = []; m.endedAt = null; state.undo = null;
+  resetImport();
+  editing.clear();
+  Object.keys(flt).forEach(k => delete flt[k]);
+  document.querySelectorAll('[data-flt]').forEach(i => i.value = '');
+  ['new-title', 'new-speaker', 'paste', 'e-to', 'e-cc', 'e-subj', 'e-body', 'e-file'].forEach(id => $(id).value = '');
+  $('new-dur').value = '10';
+  dlg = null; files = []; renderFiles();
+  $('e-fields').innerHTML = ''; $('e-title').textContent = ''; $('e-warn').textContent = '';
+  ['add-panel', 'paste-panel'].forEach(id => $(id).classList.add('hidden'));
+  $('import-panel').classList.remove('hidden');
+  save();
+  renderRun();
+  location.hash = '#setup'; renderAll();
+  $('imp-drop').focus();
+  toast('Meeting cleared. Upload agendas for the next meeting.');
+}
 $('page-run').addEventListener('click', e => {
   const q = e.target.closest('[data-tpl]'); if (q) { openEmail(q.dataset.tpl); return; }
   const o = e.target.closest('[data-oact]');
@@ -1196,14 +1215,13 @@ $('page-run').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act, m = M(), id = b.closest('tr') && b.closest('tr').dataset.id, it = id && m.agenda.find(i => i.id === id);
   if (act === 'new-meeting') {
-    m.agenda.forEach(i => { i.status = 'pending'; i.startedAt = null; });
-    m.endedAt = null; state.undo = null; save(); renderRun(); toast('New meeting started'); return;
+    if (!confirm(`Clear the old agenda in "${m.name}" and upload agendas for the next meeting? Meeting details and email wording will be kept.`)) return;
+    prepareNextMeeting(); return;
   }
   if (act === 'end-meeting') {
     if (m.agenda.some(i => i.status === 'pending')) { toast('Finish or skip all agenda items first'); return; }
-    if (!confirm(`End "${m.name}" and prepare it for the next meeting?`)) return;
-    snapshot(); if (active()) { active().status = 'done'; active().startedAt = null; }
-    m.endedAt = Date.now(); save(); renderRun(); return;
+    if (!confirm(`End "${m.name}" and clear its agenda and progress? Meeting details and email wording will be kept, and you can upload agendas for the next meeting.`)) return;
+    prepareNextMeeting(); return;
   }
   if (act === 'next') { const n = nextAfter(active()); if (n) startItem(n.id); return; }
   if (act === 'start') return startItem(id);
@@ -1462,6 +1480,15 @@ function renderImport() {
     <button class="btn" data-act="imp-replace">Replace agenda</button> <button class="btn sec" data-act="imp-add">Add to agenda</button>`;
 }
 const impRaw = { en:[], fr:[] };
+let importGeneration = 0;
+function resetImport() {
+  importGeneration++;
+  impRows = []; impRaw.en = []; impRaw.fr = [];
+  ['en', 'fr'].forEach(lang => $('imp-st-' + lang).textContent = '');
+  ['imp-file', 'imp-file-fr'].forEach(id => $(id).value = '');
+  ['imp-drop', 'imp-drop-fr'].forEach(id => $(id).classList.remove('over'));
+  renderImport();
+}
 function mergeImport() {
   const base = impRaw.en.length ? impRaw.en : impRaw.fr, byKey = new Map(impRaw.fr.map(r => [r.day + '|' + r.time, r]));
   const sameLen = impRaw.en.length === impRaw.fr.length;
@@ -1476,8 +1503,16 @@ function mergeImport() {
 async function importFile(f, lang = 'en') {
   if (!f) return;
   if (/\.doc$/i.test(f.name)) { toast('Please save the agenda as .docx first'); return; }
-  try { impRaw[lang] = await parseDocx(f); }
-  catch (err) { impRaw[lang] = []; toast(err.message === 'nodecomp' ? 'This browser cannot read Word files. Try a recent Chrome or Edge' : 'Could not read that file. Is it a .docx?'); }
+  const generation = importGeneration;
+  try {
+    const rows = await parseDocx(f);
+    if (generation !== importGeneration) return;
+    impRaw[lang] = rows;
+  }
+  catch (err) {
+    if (generation !== importGeneration) return;
+    impRaw[lang] = []; toast(err.message === 'nodecomp' ? 'This browser cannot read Word files. Try a recent Chrome or Edge' : 'Could not read that file. Is it a .docx?');
+  }
   const s = $('imp-st-' + lang); s.textContent = impRaw[lang].length ? `✔ ${f.name} (${impRaw[lang].length} rows)` : '';
   if (!impRaw[lang].length) toast('No agenda table found in that file');
   mergeImport(); renderImport();
@@ -1504,7 +1539,7 @@ $('imp-out').addEventListener('click', e => {
     if (m.agenda.length && !confirm(`Replace the ${m.agenda.length} items in "${m.name}"?`)) return;
     m.agenda = items;
   } else m.agenda.push(...items);
-  state.undo = null; impRows = []; impRaw.en = []; impRaw.fr = []; $('imp-st-en').textContent = ''; $('imp-st-fr').textContent = ''; renderImport(); save(); renderAgendaEditor(); $('import-panel').classList.add('hidden'); toast(items.length + ' items imported');
+  state.undo = null; resetImport(); save(); renderAgendaEditor(); $('import-panel').classList.add('hidden'); toast(items.length + ' items imported');
 });
 
 /* ---------- Init ---------- */
